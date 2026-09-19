@@ -785,6 +785,11 @@ func (s *Service) startCreatedSession(
 	}
 	s.recordManualOverrideIfAdmitted(ctx, taskID, sessionID, seam2Res.manualOverride, seam2Res.population, seam2Res.populationKnown, seam2Res.ceiling)
 
+	if s.architectureEvidenceGate != nil {
+		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, taskID); err != nil {
+			return nil, err
+		}
+	}
 	if effectiveProfileID, err = s.resolveDynamicLaunchExecution(ctx, session, effectiveProfileID, true); err != nil {
 		return nil, err
 	}
@@ -797,11 +802,6 @@ func (s *Service) startCreatedSession(
 	dbTask, err := s.repo.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload task after on_turn_start: %w", err)
-	}
-	if s.architectureEvidenceGate != nil {
-		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, taskID); err != nil {
-			return nil, err
-		}
 	}
 	configMode := false
 	if cm, ok := session.Metadata["config_mode"].(bool); ok && cm {
