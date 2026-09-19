@@ -372,6 +372,24 @@ func (s *Service) PrepareArchitectureBaseline(ctx context.Context, taskID string
 	if !required {
 		return nil
 	}
+	repository, err := s.architectureRepository(ctx, task)
+	if err != nil {
+		return err
+	}
+	for {
+		session, sessionErr := s.GetPrimarySession(ctx, taskID)
+		if sessionErr != nil {
+			return sessionErr
+		}
+		if architectureWorkspaceReady(session, repository.ID) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 	value, err := s.RefreshArchitectureEvidence(ctx, taskID, "")
 	if err != nil {
 		return err
@@ -380,6 +398,11 @@ func (s *Service) PrepareArchitectureBaseline(ctx context.Context, taskID string
 		return ErrArchitectureEvidenceNotReady
 	}
 	return nil
+}
+
+func architectureWorkspaceReady(session *models.TaskSession, repositoryID string) bool {
+	return session != nil && strings.TrimSpace(session.BaseCommitSHA) != "" &&
+		strings.TrimSpace(architectureWorktreePath(session, repositoryID)) != ""
 }
 
 func (s *Service) ArchitectureEvidenceDelta(ctx context.Context, taskID, diagramID string) ([]byte, error) {

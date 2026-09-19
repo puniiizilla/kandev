@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kandev/kandev/internal/task/models"
+)
 
 func TestEvaluateArchifyRelevancePrecedence(t *testing.T) {
 	tests := []struct {
@@ -28,3 +32,14 @@ func TestEvaluateArchifyRelevancePrecedence(t *testing.T) {
 }
 
 func boolPtr(value bool) *bool { return &value }
+
+func TestArchitectureWorkspaceReadyRequiresPinnedMaterializedSession(t *testing.T) {
+	session := &models.TaskSession{BaseCommitSHA: "base"}
+	if architectureWorkspaceReady(session, "repo") {
+		t.Fatal("session without a worktree must not admit baseline capture")
+	}
+	session.Worktrees = []*models.TaskEnvironmentRepo{{RepositoryID: "repo", WorktreePath: "/worktree"}}
+	if !architectureWorkspaceReady(session, "repo") {
+		t.Fatal("pinned materialized session should admit baseline capture")
+	}
+}
