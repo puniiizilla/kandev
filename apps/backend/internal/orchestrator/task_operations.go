@@ -439,6 +439,14 @@ func (s *Service) PrepareTaskSession(ctx context.Context, taskID string, agentPr
 					zap.Error(launchErr))
 				return
 			}
+			if s.architectureEvidenceGate != nil {
+				if baselineErr := s.architectureEvidenceGate.PrepareArchitectureBaseline(bgCtx, taskID); baselineErr != nil {
+					_ = s.handleSessionLaunchFailure(bgCtx, taskID, sessionID, baselineErr)
+					s.logger.Warn("failed to capture architecture baseline for prepared session",
+						zap.String("task_id", taskID), zap.String("session_id", sessionID), zap.Error(baselineErr))
+					return
+				}
+			}
 			launchOwned = true
 			if prepExec != nil {
 				s.ensureSessionPRWatch(bgCtx, taskID, prepExec.SessionID, prepExec.WorktreeBranch)
@@ -785,11 +793,6 @@ func (s *Service) startCreatedSession(
 	}
 	s.recordManualOverrideIfAdmitted(ctx, taskID, sessionID, seam2Res.manualOverride, seam2Res.population, seam2Res.populationKnown, seam2Res.ceiling)
 
-	if s.architectureEvidenceGate != nil {
-		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, taskID); err != nil {
-			return nil, err
-		}
-	}
 	if effectiveProfileID, err = s.resolveDynamicLaunchExecution(ctx, session, effectiveProfileID, true); err != nil {
 		return nil, err
 	}
