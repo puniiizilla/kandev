@@ -31,6 +31,7 @@ func TestNormalize(t *testing.T) {
 		{"gpt-5.5", "gpt-5.5", modelsdev.StrategyLookup, "codex-acp top-level"},
 		{"gpt-5.2/low", "gpt-5.2", modelsdev.StrategyLookup, "codex-acp"},
 		{"gpt-5.3-codex/medium", "gpt-5.3-codex", modelsdev.StrategyLookup, "codex-acp"},
+		{"codex/gpt-5.6-sol", "gpt-5.6-sol", modelsdev.StrategyLookup, "OmniRoute Codex route"},
 
 		// opencode-acp probes — <route>/<model>[/<effort>].
 		{"github-copilot/claude-haiku-4.5", "claude-haiku-4.5", modelsdev.StrategyLookup, "opencode route stripped"},

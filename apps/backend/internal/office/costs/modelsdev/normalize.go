@@ -58,6 +58,7 @@ var knownRoutes = map[string]struct{}{
 	"anthropic":      {},
 	"google":         {},
 	"openrouter":     {},
+	"codex":          {},
 }
 
 // contextLengthSuffixes describes the trailing context-window flags
