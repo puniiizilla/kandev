@@ -36,6 +36,7 @@ func TestInventoryAndRenderUseCommittedSourcesAndTemporaryCache(t *testing.T) {
 	runGit(t, repoDir, "config", "user.name", "Test")
 	runGit(t, repoDir, "add", ".")
 	runGit(t, repoDir, "commit", "-m", "sources")
+	runGit(t, repoDir, "remote", "add", "origin", "https://example.com/thebrain.git")
 	sha := runGit(t, repoDir, "rev-parse", "HEAD")
 	runtimePath := filepath.Join(t.TempDir(), "archify.mjs")
 	runtime := `import fs from "node:fs"; const args=process.argv.slice(2); if(args[0]==="validate"){console.log("{}");process.exit(0)} const out=args[3]; fs.writeFileSync(out,"<html>render</html>");`
@@ -57,6 +58,9 @@ func TestInventoryAndRenderUseCommittedSourcesAndTemporaryCache(t *testing.T) {
 	checkout := filepath.Join(service.cacheRoot, repository.ID, sha, "checkout")
 	if checkoutSHA := runGit(t, checkout, "rev-parse", "HEAD"); checkoutSHA != sha {
 		t.Fatalf("checkout sha = %q, want %q", checkoutSHA, sha)
+	}
+	if origin := runGit(t, checkout, "remote", "get-url", "origin"); origin != "https://example.com/thebrain.git" {
+		t.Fatalf("checkout origin = %q", origin)
 	}
 	render, err := service.Render(context.Background(), "workspace", "DIAGRAM_0", sha, false)
 	if err != nil {

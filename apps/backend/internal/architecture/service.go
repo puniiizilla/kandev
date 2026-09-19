@@ -287,6 +287,11 @@ func (s *Service) immutableCheckout(ctx context.Context, binding *Binding, sha s
 	if err := runGitCommand(ctx, "clone", "--no-checkout", "--no-hardlinks", "--local", "--", binding.Repository.LocalPath, staging); err != nil {
 		return "", err
 	}
+	if origin, originErr := gitOutput(ctx, binding.Repository.LocalPath, "remote", "get-url", "origin"); originErr == nil {
+		if err := runGitCommand(ctx, "-C", staging, "remote", "set-url", "origin", strings.TrimSpace(string(origin))); err != nil {
+			return "", err
+		}
+	}
 	if err := runGitCommand(ctx, "-C", staging, "checkout", "--detach", sha, "--"); err != nil {
 		return "", err
 	}
