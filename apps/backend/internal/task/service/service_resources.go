@@ -1469,6 +1469,15 @@ func applyRepositoryUpdates(repository *models.Repository, req *UpdateRepository
 		}
 		repository.CopyFiles = *req.CopyFiles
 	}
+	if req.ArchitectureGitRef != nil {
+		repository.ArchitectureGitRef = strings.TrimSpace(*req.ArchitectureGitRef)
+	}
+	if req.ArchitecturePath != nil {
+		repository.ArchitecturePath = strings.TrimSpace(*req.ArchitecturePath)
+	}
+	if req.ArchifyRuntime != nil {
+		repository.ArchifyRuntime = strings.TrimSpace(*req.ArchifyRuntime)
+	}
 	return nil
 }
 

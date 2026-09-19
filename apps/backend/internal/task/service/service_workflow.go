@@ -196,6 +196,9 @@ func (s *Service) UpdateTaskState(ctx context.Context, id string, state v1.TaskS
 	if oldState == state {
 		return task, nil
 	}
+	if err := s.preflightArchitectureReviewState(ctx, id, state); err != nil {
+		return nil, err
+	}
 
 	if err := s.tasks.UpdateTaskState(ctx, id, state); err != nil {
 		s.logger.Error("failed to update task state", zap.String("task_id", id), zap.Error(err))

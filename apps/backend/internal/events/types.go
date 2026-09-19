@@ -3,12 +3,13 @@ package events
 
 // Event types for tasks
 const (
-	TaskCreated       = "task.created"
-	TaskUpdated       = "task.updated"
-	TaskStateChanged  = "task.state_changed"
-	TaskDeleted       = "task.deleted"
-	TaskMoved         = "task.moved" // Manual step change via MoveTask
-	TaskQueuePromoted = "task.queue_promoted"
+	TaskCreated                     = "task.created"
+	TaskUpdated                     = "task.updated"
+	TaskStateChanged                = "task.state_changed"
+	TaskDeleted                     = "task.deleted"
+	TaskMoved                       = "task.moved" // Manual step change via MoveTask
+	TaskQueuePromoted               = "task.queue_promoted"
+	TaskArchitectureEvidenceUpdated = "task.architecture_evidence.updated"
 	// TaskReordered fires when a within-step band reorder commits
 	// (REQ-TASKS-KANBAN-TASK-REORDERING-001.16). Payload:
 	// {workflow_step_id, band, revision, tasks: [{id, position}]}, the whole

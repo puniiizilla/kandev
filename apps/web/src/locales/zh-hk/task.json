@@ -2182,5 +2182,21 @@
   "planCommentMigrationNeedsPlan": "請建立或恢復計劃，以恢復已儲存的評論。",
   "planCommentMigrationPending": "仍在恢復已儲存的計劃評論。您的訊息會保留。",
   "toolPayloadRemovedAt": "工具詳細數據已於 {{date}} 刪除。",
-  "toolPayloadRemoved": "工具詳細數據已刪除。"
+  "toolPayloadRemoved": "工具詳細數據已刪除。",
+  "architectureEvidence": "架構證據",
+  "architectureEvidenceLoading": "正在載入架構證據",
+  "architectureEvidenceUnavailable": "架構證據無法使用。請在審查前重試。",
+  "architectureEvidenceRequired": "必需",
+  "architectureChanged": "架構已變更",
+  "semanticChange": "語義變更",
+  "baseSha": "基礎 SHA",
+  "headSha": "目前 SHA",
+  "affectedDiagrams": "受影響的圖表",
+  "architectureDiffSummary": "差異摘要",
+  "architectureDiagnostics": "診斷資訊",
+  "openArchitecture": "開啟架構",
+  "openArchitectureDelta": "開啟架構差異",
+  "validation": "驗證",
+  "yes": "是",
+  "no": "否"
 }

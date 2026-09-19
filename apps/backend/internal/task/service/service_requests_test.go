@@ -20,3 +20,17 @@ func TestApplyRepositoryUpdates_AppliesRemoteURLFromJSON(t *testing.T) {
 		t.Errorf("RemoteURL = %q, want updated value", repo.RemoteURL)
 	}
 }
+
+func TestApplyRepositoryUpdatesAppliesArchifyBinding(t *testing.T) {
+	repository := &models.Repository{}
+	var updates UpdateRepositoryRequest
+	if err := json.Unmarshal([]byte(`{"architecture_git_ref":" refs/heads/main ","architecture_path":" docs/archify/ist ","archify_runtime":" /opt/archify.mjs "}`), &updates); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepositoryUpdates(repository, &updates); err != nil {
+		t.Fatal(err)
+	}
+	if repository.ArchitectureGitRef != "refs/heads/main" || repository.ArchitecturePath != "docs/archify/ist" || repository.ArchifyRuntime != "/opt/archify.mjs" {
+		t.Fatalf("unexpected binding: %#v", repository)
+	}
+}

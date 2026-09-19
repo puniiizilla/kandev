@@ -264,6 +264,19 @@ func (r *ProfileExecutionResolver) Resolve(ctx context.Context, sessionID, profi
 	return r.resolve(ctx, sessionID, profileID, expectedGeneration, excludeProfileID, "")
 }
 
+// ResolveForTask applies the repository-owned task classification before the
+// existing generation-fenced candidate selection. It never resolves providers
+// or models; each surviving candidate remains a complete OmniRoute profile.
+func (r *ProfileExecutionResolver) ResolveForTask(
+	ctx context.Context,
+	sessionID, profileID string,
+	expectedGeneration int64,
+	excludeProfileID, rawLabels string,
+	escalation dynamic.EscalationReason,
+) (ProfileExecution, error) {
+	return r.resolvePolicy(ctx, sessionID, profileID, expectedGeneration, excludeProfileID, "", rawLabels, escalation)
+}
+
 // ResolveWithPreference keeps the current concrete candidate for an explicit
 // retry when it remains eligible. Try-next callers continue to use Resolve and
 // pass the current candidate as the one-time exclusion.
@@ -321,6 +334,42 @@ func (r *ProfileExecutionResolver) ResolveRouteAction(
 	default:
 		return ProfileExecution{}, fmt.Errorf("unsupported dynamic route action %q", action)
 	}
+}
+
+func (r *ProfileExecutionResolver) ResolveRouteActionForTask(
+	ctx context.Context,
+	sessionID, profileID, currentExecutionProfileID string,
+	expectedGeneration int64,
+	action, rawLabels string,
+	escalation dynamic.EscalationReason,
+) (ProfileExecution, error) {
+	if action == "retry" {
+		return r.ResolveRouteAction(ctx, sessionID, profileID, currentExecutionProfileID, expectedGeneration, action)
+	}
+	if action != "try_next" && action != "skip" {
+		return ProfileExecution{}, fmt.Errorf("unsupported policy route action %q", action)
+	}
+	profile, err := r.loadDynamicProfile(ctx, profileID)
+	if err != nil {
+		return ProfileExecution{}, err
+	}
+	classification, err := dynamic.ClassifyTaskLabels(rawLabels)
+	if err != nil {
+		return ProfileExecution{}, err
+	}
+	profile, err = dynamic.ApplyOmniRoutePolicy(profile, classification.Class, escalation)
+	if err != nil {
+		return ProfileExecution{}, err
+	}
+	profile.TaskClassSource = classification.Source
+	profile.Candidates = dynamic.CandidatesAfter(profile.Candidates, currentExecutionProfileID)
+	decision, err := r.engine.SelectContextWithReason(
+		ctx, sessionID, profile, expectedGeneration, currentExecutionProfileID, string(escalation),
+	)
+	if err != nil {
+		return ProfileExecution{}, err
+	}
+	return r.executionFromDecision(ctx, profileID, sessionID, decision)
 }
 
 // MarkRouteActive completes a claimed route's starting phase after the
@@ -523,6 +572,16 @@ func (r *ProfileExecutionResolver) resolve(
 	expectedGeneration int64,
 	excludeProfileID, preferredProfileID string,
 ) (ProfileExecution, error) {
+	return r.resolvePolicy(ctx, sessionID, profileID, expectedGeneration, excludeProfileID, preferredProfileID, "", dynamic.EscalationNone)
+}
+
+func (r *ProfileExecutionResolver) resolvePolicy(
+	ctx context.Context,
+	sessionID, profileID string,
+	expectedGeneration int64,
+	excludeProfileID, preferredProfileID, rawLabels string,
+	escalation dynamic.EscalationReason,
+) (ProfileExecution, error) {
 	if r.profiles == nil {
 		return ProfileExecution{}, errors.New("profile execution resolver has no profile store")
 	}
@@ -548,6 +607,17 @@ func (r *ProfileExecutionResolver) resolve(
 	profileConfig, err := r.loadDynamicProfile(ctx, profileID)
 	if err != nil {
 		return ProfileExecution{}, err
+	}
+	if profileConfig.PolicyKind == dynamic.PolicyOmniRouteCostFirstV1 {
+		classification, classifyErr := dynamic.ClassifyTaskLabels(rawLabels)
+		if classifyErr != nil {
+			return ProfileExecution{}, classifyErr
+		}
+		profileConfig, err = dynamic.ApplyOmniRoutePolicy(profileConfig, classification.Class, escalation)
+		if err != nil {
+			return ProfileExecution{}, err
+		}
+		profileConfig.TaskClassSource = classification.Source
 	}
 	decision, err := r.engine.SelectContextWithPreference(
 		ctx, sessionID, profileConfig, expectedGeneration, excludeProfileID, preferredProfileID,
@@ -599,12 +669,13 @@ func (r *ProfileExecutionResolver) loadDynamicProfile(ctx context.Context, profi
 		return dynamic.Profile{}, fmt.Errorf("load dynamic profile %s: %w", profileID, err)
 	}
 	profile := dynamic.Profile{
-		ID: profileID, Version: config.Version,
+		ID: profileID, Version: config.Version, PolicyKind: config.PolicyKind,
 		Candidates: make([]dynamic.Candidate, 0, len(routes)),
 	}
 	for _, route := range routes {
 		candidate := dynamic.Candidate{
 			ID: route.ExecutionProfileID, Enabled: route.Enabled,
+			RouteClass: dynamic.RouteClass(route.RouteClass),
 			BindingKey: dynamic.ResourceKey(dynamic.ScopeProfile, route.ExecutionProfileID),
 		}
 		if route.RulesJSON != "" {

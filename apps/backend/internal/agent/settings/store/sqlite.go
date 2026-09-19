@@ -122,6 +122,7 @@ func (r *sqliteRepository) initSchema() error {
 
 	CREATE TABLE IF NOT EXISTS dynamic_agent_profiles (
 		profile_id TEXT PRIMARY KEY,
+		policy_kind TEXT NOT NULL DEFAULT '',
 		version INTEGER NOT NULL DEFAULT 1,
 		created_at TIMESTAMP NOT NULL,
 		updated_at TIMESTAMP NOT NULL,
@@ -133,6 +134,7 @@ func (r *sqliteRepository) initSchema() error {
 		position INTEGER NOT NULL,
 		execution_profile_id TEXT NOT NULL,
 		enabled INTEGER NOT NULL DEFAULT 1,
+		route_class TEXT NOT NULL DEFAULT '',
 		rules_json TEXT NOT NULL DEFAULT '{}',
 		PRIMARY KEY (dynamic_profile_id, position),
 		FOREIGN KEY (dynamic_profile_id) REFERENCES dynamic_agent_profiles(profile_id) ON DELETE CASCADE,
@@ -194,6 +196,8 @@ func (r *sqliteRepository) initSchema() error {
 	r.migrate.Apply("agent_profiles.fallback_model", `ALTER TABLE agent_profiles ADD COLUMN fallback_model TEXT NOT NULL DEFAULT ''`)
 	r.migrate.Apply("agent_profiles.auto_fallback", `ALTER TABLE agent_profiles ADD COLUMN auto_fallback INTEGER NOT NULL DEFAULT 0`)
 	_ = r.migrate.Apply("agent_profiles.require_exact_model", `ALTER TABLE agent_profiles ADD COLUMN require_exact_model INTEGER NOT NULL DEFAULT 0`)
+	_ = r.migrate.Apply("dynamic_agent_profiles.policy_kind", `ALTER TABLE dynamic_agent_profiles ADD COLUMN policy_kind TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_agent_routes.route_class", `ALTER TABLE dynamic_agent_routes ADD COLUMN route_class TEXT NOT NULL DEFAULT ''`)
 	if err := r.migrate.Err(); err != nil {
 		return fmt.Errorf("required agent settings migration: %w", err)
 	}
@@ -707,9 +711,9 @@ func (r *sqliteRepository) CreateDynamicAgentProfile(
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, tx.Rebind(`
-		INSERT INTO dynamic_agent_profiles (profile_id, version, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
-	`), profile.ProfileID, profile.Version, profile.CreatedAt, profile.UpdatedAt); err != nil {
+		INSERT INTO dynamic_agent_profiles (profile_id, policy_kind, version, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`), profile.ProfileID, profile.PolicyKind, profile.Version, profile.CreatedAt, profile.UpdatedAt); err != nil {
 		return err
 	}
 	if err := insertDynamicRoutes(ctx, tx, profile.ProfileID, routes); err != nil {
@@ -722,10 +726,10 @@ func insertDynamicRoutes(ctx context.Context, execer profileExecer, profileID st
 	for _, route := range routes {
 		if _, err := execer.ExecContext(ctx, execer.Rebind(`
 			INSERT INTO dynamic_agent_routes
-				(dynamic_profile_id, position, execution_profile_id, enabled, rules_json)
-			VALUES (?, ?, ?, ?, ?)
+				(dynamic_profile_id, position, execution_profile_id, enabled, route_class, rules_json)
+			VALUES (?, ?, ?, ?, ?, ?)
 		`), profileID, route.Position, route.ExecutionProfileID,
-			dialect.BoolToInt(route.Enabled), route.RulesJSON); err != nil {
+			dialect.BoolToInt(route.Enabled), route.RouteClass, route.RulesJSON); err != nil {
 			return err
 		}
 	}
@@ -738,13 +742,13 @@ func (r *sqliteRepository) GetDynamicAgentProfile(
 ) (*models.DynamicAgentProfile, []models.DynamicAgentRoute, error) {
 	profile := &models.DynamicAgentProfile{}
 	if err := r.ro.QueryRowContext(ctx, r.ro.Rebind(`
-		SELECT profile_id, version, created_at, updated_at
+		SELECT profile_id, policy_kind, version, created_at, updated_at
 		FROM dynamic_agent_profiles WHERE profile_id = ?
-	`), profileID).Scan(&profile.ProfileID, &profile.Version, &profile.CreatedAt, &profile.UpdatedAt); err != nil {
+	`), profileID).Scan(&profile.ProfileID, &profile.PolicyKind, &profile.Version, &profile.CreatedAt, &profile.UpdatedAt); err != nil {
 		return nil, nil, err
 	}
 	rows, err := r.ro.QueryxContext(ctx, r.ro.Rebind(`
-		SELECT dynamic_profile_id, position, execution_profile_id, enabled, rules_json
+		SELECT dynamic_profile_id, position, execution_profile_id, enabled, route_class, rules_json
 		FROM dynamic_agent_routes WHERE dynamic_profile_id = ? ORDER BY position ASC
 	`), profileID)
 	if err != nil {
@@ -755,7 +759,7 @@ func (r *sqliteRepository) GetDynamicAgentProfile(
 	for rows.Next() {
 		var route models.DynamicAgentRoute
 		var enabled int
-		if err := rows.Scan(&route.DynamicProfileID, &route.Position, &route.ExecutionProfileID, &enabled, &route.RulesJSON); err != nil {
+		if err := rows.Scan(&route.DynamicProfileID, &route.Position, &route.ExecutionProfileID, &enabled, &route.RouteClass, &route.RulesJSON); err != nil {
 			return nil, nil, err
 		}
 		route.Enabled = enabled != 0
@@ -800,9 +804,9 @@ func (r *sqliteRepository) updateDynamicAgentProfileTx(
 	now := time.Now().UTC()
 	result, err := execer.ExecContext(ctx, execer.Rebind(`
 		UPDATE dynamic_agent_profiles
-		SET version = version + 1, updated_at = ?
+		SET policy_kind = ?, version = version + 1, updated_at = ?
 		WHERE profile_id = ? AND version = ?
-	`), now, profile.ProfileID, expectedVersion)
+	`), profile.PolicyKind, now, profile.ProfileID, expectedVersion)
 	if err != nil {
 		return err
 	}

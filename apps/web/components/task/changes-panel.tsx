@@ -18,6 +18,7 @@ import {
   useContributionComparisonRequest,
 } from "./remote-contribution-comparison";
 import { contributionHistoryExplanationKey } from "@/hooks/domains/session/use-contribution-history-explanation";
+import { ArchitectureEvidenceCard } from "./architecture-evidence-card";
 
 export { filterUnpushedCommits, mergeCommits, separateCommitHistories };
 
@@ -97,6 +98,7 @@ const ChangesPanel = memo(function ChangesPanel(props: ChangesPanelProps) {
         remoteContributionUrl={data.selectedPR?.pr_url ?? data.existingPrUrl}
         remoteContributionNumber={data.selectedPR?.pr_number}
       />
+      <ArchitectureEvidenceCard taskId={data.activeTaskId} />
       <ChangesPanelBody
         {...buildChangesPanelBodyProps(data, props)}
         comparisonRequestToken={comparisonRequestToken}

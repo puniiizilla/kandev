@@ -31,10 +31,11 @@ func (r *Repository) initSchemaContext(ctx context.Context) error {
 		r.initWalkthroughsSchema,
 		r.initDocumentsSchema,
 		r.initSessionSchema,
+		r.initTaskUsageEventsSchema,
 		r.initDynamicRoutingSchema,
+		r.initArchitectureEvidenceSchema,
 		r.initStepTransitionsSchema,
 		r.initStepEntriesSchema,
-		r.initTaskUsageEventsSchema,
 		r.initAttachmentsSchema,
 		r.initTaskResourceCleanupSchema,
 		r.initControlServerRecordSchema,
@@ -80,6 +81,41 @@ func (r *Repository) initSchemaContext(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (r *Repository) initArchitectureEvidenceSchema() error {
+	_, err := r.db.ExecContext(r.migrationContext(), `
+		CREATE TABLE IF NOT EXISTS task_architecture_evidence (
+			id TEXT PRIMARY KEY, task_id TEXT NOT NULL, repository_id TEXT NOT NULL,
+			architecture_path TEXT NOT NULL, policy_version TEXT NOT NULL,
+			required INTEGER NOT NULL, relevance_rule TEXT NOT NULL,
+			override_actor_id TEXT NOT NULL DEFAULT '', override_reason TEXT NOT NULL DEFAULT '',
+			base_sha TEXT NOT NULL DEFAULT '', head_sha TEXT NOT NULL DEFAULT '',
+			runtime_contract TEXT NOT NULL DEFAULT '', state TEXT NOT NULL,
+			validation_status TEXT NOT NULL DEFAULT '', architecture_changed INTEGER NOT NULL DEFAULT 0,
+			semantic_change INTEGER NOT NULL DEFAULT 0, affected_diagrams_json TEXT NOT NULL DEFAULT '[]',
+			diff_summary_json TEXT NOT NULL DEFAULT '{}', diagnostics_json TEXT NOT NULL DEFAULT '[]',
+			baseline_receipt_json TEXT NOT NULL DEFAULT '{}', baseline_hash TEXT NOT NULL DEFAULT '',
+			after_receipt_json TEXT NOT NULL DEFAULT '{}', after_hash TEXT NOT NULL DEFAULT '',
+			delta_receipt_json TEXT NOT NULL DEFAULT '{}', delta_hash TEXT NOT NULL DEFAULT '',
+			cache_key TEXT NOT NULL DEFAULT '', source_workflow_step_id TEXT NOT NULL DEFAULT '',
+			attempt INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL,
+			updated_at TIMESTAMP NOT NULL, completed_at TIMESTAMP,
+			UNIQUE(task_id, repository_id, architecture_path),
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+			FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_task_architecture_evidence_task ON task_architecture_evidence(task_id);
+		CREATE TABLE IF NOT EXISTS task_architecture_evidence_events (
+			id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL, task_id TEXT NOT NULL,
+			state TEXT NOT NULL, reason_code TEXT NOT NULL DEFAULT '', base_sha TEXT NOT NULL DEFAULT '',
+			head_sha TEXT NOT NULL DEFAULT '', actor_id TEXT NOT NULL DEFAULT '', created_at TIMESTAMP NOT NULL,
+			FOREIGN KEY (evidence_id) REFERENCES task_architecture_evidence(id) ON DELETE CASCADE,
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_task_architecture_evidence_events_task ON task_architecture_evidence_events(task_id, created_at);
+	`)
+	return err
 }
 
 // ensureTaskEnvironmentRecoveryClaimsSchema creates the durable authority used
@@ -130,18 +166,46 @@ func (r *Repository) initDynamicRoutingSchema() error {
 		CREATE TABLE IF NOT EXISTS dynamic_route_attempts (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL,
+			task_id TEXT NOT NULL DEFAULT '',
 			logical_profile_id TEXT NOT NULL,
 			execution_profile_id TEXT NOT NULL DEFAULT '',
 			route_generation BIGINT NOT NULL,
 			profile_version BIGINT NOT NULL,
+			route_class TEXT NOT NULL DEFAULT '',
+			task_class TEXT NOT NULL DEFAULT '',
+			task_class_source TEXT NOT NULL DEFAULT '',
+			attempt_ordinal BIGINT NOT NULL DEFAULT 0,
+			escalation_reason TEXT NOT NULL DEFAULT '',
+			failure_category TEXT NOT NULL DEFAULT '',
+			quality_result TEXT NOT NULL DEFAULT '',
+			quality_source TEXT NOT NULL DEFAULT '',
+			usage_event_id TEXT,
+			latency_ms BIGINT,
 			reason TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMP NOT NULL,
 			UNIQUE (session_id, route_generation),
-			FOREIGN KEY (session_id) REFERENCES task_sessions(id) ON DELETE CASCADE
+			FOREIGN KEY (session_id) REFERENCES task_sessions(id) ON DELETE CASCADE,
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+			FOREIGN KEY (usage_event_id) REFERENCES task_usage_events(usage_event_id) ON DELETE SET NULL
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_dynamic_route_attempts_session
 			ON dynamic_route_attempts(session_id, route_generation);
+
+		CREATE TABLE IF NOT EXISTS dynamic_route_quality_results (
+			id TEXT PRIMARY KEY,
+			task_id TEXT NOT NULL,
+			session_id TEXT NOT NULL,
+			route_attempt_id TEXT NOT NULL,
+			result TEXT NOT NULL,
+			source TEXT NOT NULL,
+			source_reference TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL,
+			UNIQUE (route_attempt_id, source, source_reference),
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+			FOREIGN KEY (session_id) REFERENCES task_sessions(id) ON DELETE CASCADE,
+			FOREIGN KEY (route_attempt_id) REFERENCES dynamic_route_attempts(id) ON DELETE CASCADE
+		);
 
 		CREATE TABLE IF NOT EXISTS dynamic_resource_circuits (
 			resource_key TEXT PRIMARY KEY,
@@ -534,6 +598,9 @@ func (r *Repository) initTaskSchema() error {
 		cleanup_script TEXT DEFAULT '',
 		dev_script TEXT DEFAULT '',
 		copy_files TEXT DEFAULT '',
+		architecture_git_ref TEXT DEFAULT '',
+		architecture_path TEXT DEFAULT '',
+		archify_runtime TEXT DEFAULT '',
 		created_at TIMESTAMP NOT NULL,
 		updated_at TIMESTAMP NOT NULL,
 		deleted_at TIMESTAMP,

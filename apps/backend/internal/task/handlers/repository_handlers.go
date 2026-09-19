@@ -676,6 +676,9 @@ type httpUpdateRepositoryRequest struct {
 	CleanupScript          *string                                 `json:"cleanup_script"`
 	DevScript              *string                                 `json:"dev_script"`
 	CopyFiles              *string                                 `json:"copy_files"`
+	ArchitectureGitRef     *string                                 `json:"architecture_git_ref"`
+	ArchitecturePath       *string                                 `json:"architecture_path"`
+	ArchifyRuntime         *string                                 `json:"archify_runtime"`
 	SecretBindings         *[]service.RepositorySecretBindingInput `json:"secret_bindings,omitempty"`
 }
 
@@ -706,6 +709,9 @@ func (h *RepositoryHandlers) httpUpdateRepository(c *gin.Context) {
 		CleanupScript:          body.CleanupScript,
 		DevScript:              body.DevScript,
 		CopyFiles:              body.CopyFiles,
+		ArchitectureGitRef:     body.ArchitectureGitRef,
+		ArchitecturePath:       body.ArchitecturePath,
+		ArchifyRuntime:         body.ArchifyRuntime,
 		SecretBindings:         body.SecretBindings,
 	})
 	if err != nil {
@@ -870,6 +876,9 @@ type wsUpdateRepositoryRequest struct {
 	CleanupScript          *string                                 `json:"cleanup_script,omitempty"`
 	DevScript              *string                                 `json:"dev_script,omitempty"`
 	CopyFiles              *string                                 `json:"copy_files,omitempty"`
+	ArchitectureGitRef     *string                                 `json:"architecture_git_ref,omitempty"`
+	ArchitecturePath       *string                                 `json:"architecture_path,omitempty"`
+	ArchifyRuntime         *string                                 `json:"archify_runtime,omitempty"`
 	SecretBindings         *[]service.RepositorySecretBindingInput `json:"secret_bindings,omitempty"`
 }
 
@@ -901,6 +910,9 @@ func (h *RepositoryHandlers) wsUpdateRepository(ctx context.Context, msg *ws.Mes
 		CleanupScript:          req.CleanupScript,
 		DevScript:              req.DevScript,
 		CopyFiles:              req.CopyFiles,
+		ArchitectureGitRef:     req.ArchitectureGitRef,
+		ArchitecturePath:       req.ArchitecturePath,
+		ArchifyRuntime:         req.ArchifyRuntime,
 		SecretBindings:         req.SecretBindings,
 	})
 	if err != nil {

@@ -61,7 +61,7 @@ func applyDynamicRouteAction(
 	); err != nil {
 		return nil, routeActionError(ctx, repo, session, err)
 	}
-	decision, err := resolveDynamicRouteAction(ctx, resolver, request, session)
+	decision, err := resolveDynamicRouteAction(ctx, repo, resolver, request, session)
 	if err != nil {
 		return handleDynamicRouteActionError(ctx, repo, session, expectedState, err)
 	}
@@ -108,10 +108,21 @@ func loadDynamicRouteActionSession(
 
 func resolveDynamicRouteAction(
 	ctx context.Context,
+	repo *sqliterepo.Repository,
 	resolver *agentruntime.ProfileExecutionResolver,
 	request orchestrator.RouteActionRequest,
 	session *models.TaskSession,
 ) (agentruntime.ProfileExecution, error) {
+	if request.EscalationReason != dynamicruntime.EscalationNone {
+		task, err := repo.GetTask(ctx, session.TaskID)
+		if err != nil {
+			return agentruntime.ProfileExecution{}, err
+		}
+		return resolver.ResolveRouteActionForTask(
+			ctx, session.ID, session.AgentProfileID, session.ExecutionProfileID,
+			request.ExpectedGeneration, string(request.Action), task.Labels, request.EscalationReason,
+		)
+	}
 	return resolver.ResolveRouteAction(
 		ctx,
 		session.ID,

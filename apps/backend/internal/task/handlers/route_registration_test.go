@@ -186,6 +186,7 @@ func TestRegisterRepositoryRoutesWiresHTTPAndWS(t *testing.T) {
 		"GET /api/v1/fs/list-dir",
 		"POST /api/v1/fs/create-dir",
 		"GET /api/v1/repositories/:id",
+		"GET /api/v1/repositories/:id/planning",
 		"GET /api/v1/repositories/:id/branches",
 		"GET /api/v1/repositories/:id/active-session-count",
 		"PATCH /api/v1/repositories/:id",

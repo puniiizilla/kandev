@@ -37,6 +37,7 @@ type TaskHandlers struct {
 	cancellationPending           dto.CancellationPendingProvider
 	parkedProjection              dto.ParkedProvider
 	taskParkedProjection          dto.TaskParkedProvider
+	routingEvidence               routingEvidenceReader
 	repo                          handlerRepo
 	planService                   *service.PlanService
 	handoffSvc                    *service.HandoffService
@@ -165,6 +166,9 @@ func NewTaskHandlers(svc *service.Service, orchestrator OrchestratorStarter, rep
 	if taskParked, ok := orchestrator.(dto.TaskParkedProvider); ok {
 		h.taskParkedProjection = taskParked
 	}
+	if evidence, ok := repo.(routingEvidenceReader); ok {
+		h.routingEvidence = evidence
+	}
 	return h
 }
 
@@ -212,6 +216,12 @@ func (h *TaskHandlers) registerHTTP(router *gin.Engine) {
 	// AC-18): per-task and per-session usage/cost totals.
 	api.GET("/tasks/:id/usage", h.httpGetTaskUsageTotals)
 	api.GET("/tasks/:id/sessions/:sessionId/usage", h.httpGetTaskSessionUsageTotals)
+	api.POST("/tasks/:id/routing-quality-results", h.httpRecordRoutingQualityResult)
+	api.GET("/tasks/:id/routing-evidence", h.httpGetRoutingEvidence)
+	api.GET("/tasks/:id/architecture-evidence", h.httpGetArchitectureEvidence)
+	api.POST("/tasks/:id/architecture-evidence/refresh", h.httpRefreshArchitectureEvidence)
+	api.POST("/tasks/:id/architecture-evidence/override", h.httpOverrideArchitectureEvidence)
+	api.GET("/tasks/:id/architecture-evidence/delta/:diagramID", h.httpGetArchitectureEvidenceDelta)
 
 	// Task dependencies ("this task is blocked by that one"). Task-scoped
 	// equivalents of the Office-only blocker routes; both go through the single

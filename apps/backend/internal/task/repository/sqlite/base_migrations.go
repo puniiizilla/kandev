@@ -77,6 +77,20 @@ func (r *Repository) runMigrations() error {
 	r.migrate.Apply("task_sessions.downstream_acp_session_id", `ALTER TABLE task_sessions ADD COLUMN downstream_acp_session_id TEXT NOT NULL DEFAULT ''`)
 	r.migrate.Apply("dynamic_route_states.continuation_json", `ALTER TABLE dynamic_route_states ADD COLUMN continuation_json TEXT NOT NULL DEFAULT ''`)
 	r.migrate.Apply("dynamic_route_states.policy_state_json", `ALTER TABLE dynamic_route_states ADD COLUMN policy_state_json TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.task_id", `ALTER TABLE dynamic_route_attempts ADD COLUMN task_id TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.route_class", `ALTER TABLE dynamic_route_attempts ADD COLUMN route_class TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.task_class", `ALTER TABLE dynamic_route_attempts ADD COLUMN task_class TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.task_class_source", `ALTER TABLE dynamic_route_attempts ADD COLUMN task_class_source TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.attempt_ordinal", `ALTER TABLE dynamic_route_attempts ADD COLUMN attempt_ordinal BIGINT NOT NULL DEFAULT 0`)
+	_ = r.migrate.Apply("dynamic_route_attempts.escalation_reason", `ALTER TABLE dynamic_route_attempts ADD COLUMN escalation_reason TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.failure_category", `ALTER TABLE dynamic_route_attempts ADD COLUMN failure_category TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.quality_result", `ALTER TABLE dynamic_route_attempts ADD COLUMN quality_result TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.quality_source", `ALTER TABLE dynamic_route_attempts ADD COLUMN quality_source TEXT NOT NULL DEFAULT ''`)
+	_ = r.migrate.Apply("dynamic_route_attempts.usage_event_id", `ALTER TABLE dynamic_route_attempts ADD COLUMN usage_event_id TEXT`)
+	_ = r.migrate.Apply("dynamic_route_attempts.latency_ms", `ALTER TABLE dynamic_route_attempts ADD COLUMN latency_ms BIGINT`)
+	if _, err := r.db.ExecContext(r.migrationContext(), `CREATE UNIQUE INDEX IF NOT EXISTS uniq_dynamic_route_attempts_usage_event ON dynamic_route_attempts(usage_event_id)`); err != nil {
+		return fmt.Errorf("create route attempt usage event index: %w", err)
+	}
 	if err := r.backfillLegacyActiveDynamicRoutes(); err != nil {
 		return err
 	}
@@ -164,6 +178,15 @@ func (r *Repository) runMigrations() error {
 	// column added earlier.
 	r.migrate.Apply("task_sessions.name", `ALTER TABLE task_sessions ADD COLUMN name TEXT DEFAULT ''`)
 	r.migrate.Apply("repositories.copy_files", `ALTER TABLE repositories ADD COLUMN copy_files TEXT DEFAULT ''`)
+	if err := r.migrate.Apply("repositories.architecture_git_ref", `ALTER TABLE repositories ADD COLUMN architecture_git_ref TEXT DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := r.migrate.Apply("repositories.architecture_path", `ALTER TABLE repositories ADD COLUMN architecture_path TEXT DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := r.migrate.Apply("repositories.archify_runtime", `ALTER TABLE repositories ADD COLUMN archify_runtime TEXT DEFAULT ''`); err != nil {
+		return err
+	}
 	r.migrate.Apply("repository_secret_bindings.table", `
 		CREATE TABLE IF NOT EXISTS repository_secret_bindings (
 			repository_id TEXT NOT NULL,

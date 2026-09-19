@@ -11,6 +11,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
+	"github.com/kandev/kandev/internal/architecture"
 	"github.com/kandev/kandev/internal/common/fsdiagnostics"
 	"github.com/kandev/kandev/internal/common/logger"
 	"github.com/kandev/kandev/internal/events/bus"
@@ -465,6 +466,9 @@ type Service struct {
 	sessionRunningChecker       SessionRunningChecker
 	remoteBranchLister          RemoteBranchLister
 	repositorySelectionResolver RepositorySelectionResolver
+	architecture                *architecture.Service
+	architectureFlightsMu       sync.Mutex
+	architectureEvidenceFlights map[string]*architectureEvidenceFlight
 	repoCloneLocation           RepoCloneLocation
 	blockers                    BlockerRepository
 	comments                    CommentRepository

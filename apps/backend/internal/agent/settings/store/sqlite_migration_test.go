@@ -217,6 +217,50 @@ func TestMigration_LegacyDB_PreservesEnvVarsColumn(t *testing.T) {
 	}
 }
 
+func TestMigration_LegacyDynamicProfilesDefaultToPolicyDisabled(t *testing.T) {
+	// @covers AC-AGENTS-OMNIROUTE-POLICY-001.1
+	db := newLegacyDB(t)
+	if _, err := db.Exec(`
+		CREATE TABLE dynamic_agent_profiles (
+			profile_id TEXT PRIMARY KEY,
+			version INTEGER NOT NULL DEFAULT 1,
+			created_at TIMESTAMP NOT NULL,
+			updated_at TIMESTAMP NOT NULL
+		);
+		CREATE TABLE dynamic_agent_routes (
+			dynamic_profile_id TEXT NOT NULL,
+			position INTEGER NOT NULL,
+			execution_profile_id TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			rules_json TEXT NOT NULL DEFAULT '{}',
+			PRIMARY KEY (dynamic_profile_id, position)
+		);
+	`); err != nil {
+		t.Fatalf("create legacy dynamic schema: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO dynamic_agent_profiles (profile_id, version, created_at, updated_at)
+		VALUES ('dynamic-1', 1, datetime('now'), datetime('now'));
+		INSERT INTO dynamic_agent_routes (dynamic_profile_id, position, execution_profile_id, enabled, rules_json)
+		VALUES ('dynamic-1', 0, 'concrete-1', 1, '{}');
+	`); err != nil {
+		t.Fatalf("seed legacy dynamic schema: %v", err)
+	}
+	if _, err := newSQLiteRepository(db, db, nil, false); err != nil {
+		t.Fatalf("migrate legacy dynamic schema: %v", err)
+	}
+	var policyKind, routeClass string
+	if err := db.QueryRow(`SELECT policy_kind FROM dynamic_agent_profiles WHERE profile_id = 'dynamic-1'`).Scan(&policyKind); err != nil {
+		t.Fatalf("read policy_kind: %v", err)
+	}
+	if err := db.QueryRow(`SELECT route_class FROM dynamic_agent_routes WHERE dynamic_profile_id = 'dynamic-1'`).Scan(&routeClass); err != nil {
+		t.Fatalf("read route_class: %v", err)
+	}
+	if policyKind != "" || routeClass != "" {
+		t.Fatalf("legacy defaults policy_kind=%q route_class=%q", policyKind, routeClass)
+	}
+}
+
 // TestMigration_LegacyDB_PreservesRequireExactModel verifies that a database
 // which already has the additive field keeps it while the model CHECK table
 // recreation runs. This protects upgrades that stop during the migration

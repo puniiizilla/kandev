@@ -112,7 +112,7 @@ func TestTaskEventBroadcaster_NoDuplicateSubscriptions(t *testing.T) {
 	//
 	// Update this number when adding or removing event subscriptions in
 	// RegisterTaskNotifications — it is intentionally exact.
-	const wantSubscriptions = 77
+	const wantSubscriptions = 78
 	if got := len(b.subscriptions); got != wantSubscriptions {
 		t.Errorf("RegisterTaskNotifications created %d subscriptions, want %d — "+
 			"did an event get subscribed twice?", got, wantSubscriptions)
@@ -270,6 +270,31 @@ func TestTaskEventBroadcaster_PlanCommentsAreTaskScoped(t *testing.T) {
 	}
 	if clientReceived(second) {
 		t.Fatal("plan comments notification crossed the task boundary")
+	}
+}
+
+func TestTaskEventBroadcaster_ArchitectureEvidenceIsTaskScoped(t *testing.T) {
+	hub := newTestHub(t)
+	first := newTestClient("first")
+	second := newTestClient("second")
+	registerTestClient(hub, first)
+	registerTestClient(hub, second)
+	hub.SubscribeToTask(first, "task-1")
+	hub.SubscribeToTask(second, "task-2")
+	broadcaster := &TaskEventBroadcaster{hub: hub, logger: testLogger()}
+	payload := map[string]any{"task_id": "task-1", "evidence": map[string]any{"state": "READY_FOR_REVIEW"}}
+
+	require.NoError(t, broadcaster.broadcastEvent(context.Background(), bus.NewEvent(
+		events.TaskArchitectureEvidenceUpdated,
+		"test",
+		payload,
+	), ws.ActionTaskArchitectureEvidenceUpdated))
+
+	if !clientReceived(first) {
+		t.Fatal("task subscriber did not receive architecture evidence notification")
+	}
+	if clientReceived(second) {
+		t.Fatal("architecture evidence notification crossed the task boundary")
 	}
 }
 

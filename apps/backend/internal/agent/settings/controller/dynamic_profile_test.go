@@ -103,6 +103,55 @@ func TestValidateDynamicAgentProfile(t *testing.T) {
 	}
 }
 
+func TestValidateDynamicAgentProfileOmniRoutePolicy(t *testing.T) {
+	// @covers AC-AGENTS-OMNIROUTE-POLICY-001.2
+	tests := []struct {
+		name    string
+		profile *dto.DynamicAgentProfileDTO
+		wantErr error
+	}{
+		{
+			name: "requires local and free enabled routes",
+			profile: &dto.DynamicAgentProfileDTO{PolicyKind: "omniroute_cost_first_v1", Candidates: []dto.DynamicAgentCandidateDTO{
+				{Position: 0, ExecutionProfileID: "local", Enabled: true, RouteClass: "local"},
+			}},
+			wantErr: ErrDynamicProfileRouteClass,
+		},
+		{
+			name: "rejects unknown route class",
+			profile: &dto.DynamicAgentProfileDTO{PolicyKind: "omniroute_cost_first_v1", Candidates: []dto.DynamicAgentCandidateDTO{
+				{Position: 0, ExecutionProfileID: "local", Enabled: true, RouteClass: "local"},
+				{Position: 1, ExecutionProfileID: "free", Enabled: true, RouteClass: "gratis"},
+			}},
+			wantErr: ErrDynamicProfileRouteClass,
+		},
+		{
+			name: "accepts required route classes",
+			profile: &dto.DynamicAgentProfileDTO{PolicyKind: "omniroute_cost_first_v1", Candidates: []dto.DynamicAgentCandidateDTO{
+				{Position: 0, ExecutionProfileID: "local", Enabled: true, RouteClass: "local"},
+				{Position: 1, ExecutionProfileID: "free", Enabled: true, RouteClass: "free"},
+				{Position: 2, ExecutionProfileID: "cheap", Enabled: true, RouteClass: "low_cost"},
+				{Position: 3, ExecutionProfileID: "strong", Enabled: true, RouteClass: "strong"},
+			}},
+		},
+		{
+			name: "legacy profile needs no route classes",
+			profile: &dto.DynamicAgentProfileDTO{Candidates: []dto.DynamicAgentCandidateDTO{
+				{Position: 0, ExecutionProfileID: "candidate", Enabled: true},
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDynamicAgentProfile(tt.profile)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestNormalizeDynamicPolicyLegacyRules(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -171,11 +220,13 @@ func TestNormalizeDynamicPolicyRejectsConflictingClassRules(t *testing.T) {
 }
 
 func TestDynamicPolicyCanonicalRoundTrip(t *testing.T) {
-	profile := &dto.DynamicAgentProfileDTO{Candidates: []dto.DynamicAgentCandidateDTO{{
-		Position:           0,
-		ExecutionProfileID: "candidate",
-		Rules:              map[string]string{"on_provider_error": "try_next"},
-	}}}
+	profile := &dto.DynamicAgentProfileDTO{
+		PolicyKind: "omniroute_cost_first_v1",
+		Candidates: []dto.DynamicAgentCandidateDTO{
+			{Position: 0, ExecutionProfileID: "local", Enabled: true, RouteClass: "local", Rules: map[string]string{"on_provider_error": "try_next"}},
+			{Position: 1, ExecutionProfileID: "free", Enabled: true, RouteClass: "free", Rules: map[string]string{"on_provider_error": "try_next"}},
+		},
+	}
 	if err := validateDynamicAgentProfile(profile); err != nil {
 		t.Fatalf("validateDynamicAgentProfile: %v", err)
 	}
@@ -183,9 +234,12 @@ func TestDynamicPolicyCanonicalRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dynamicRoutesFromDTO: %v", err)
 	}
-	got, err := dynamicProfileDTO(&models.DynamicAgentProfile{ProfileID: "dynamic", Version: 1}, routes)
+	got, err := dynamicProfileDTO(&models.DynamicAgentProfile{ProfileID: "dynamic", PolicyKind: profile.PolicyKind, Version: 1}, routes)
 	if err != nil {
 		t.Fatalf("dynamicProfileDTO: %v", err)
+	}
+	if got.PolicyKind != profile.PolicyKind || got.Candidates[0].RouteClass != "local" || got.Candidates[1].RouteClass != "free" {
+		t.Fatalf("policy round trip = %#v", got)
 	}
 	if got.Candidates[0].Rules != nil {
 		t.Fatalf("canonical response retained legacy rules: %#v", got.Candidates[0].Rules)

@@ -60,6 +60,9 @@ describe("resolveSpaRoute", () => {
 
   it("maps first-class SPA surfaces to their route keys", () => {
     expect(resolveSpaRoute("/tasks", new URLSearchParams())).toEqual({ kind: "tasks" });
+    expect(resolveSpaRoute("/architecture", new URLSearchParams())).toEqual({
+      kind: "architecture",
+    });
     expect(resolveSpaRoute("/github", new URLSearchParams())).toEqual({ kind: "github" });
     expect(resolveSpaRoute("/gitlab", new URLSearchParams())).toEqual({ kind: "gitlab" });
     expect(resolveSpaRoute("/jira", new URLSearchParams())).toEqual({ kind: "jira" });

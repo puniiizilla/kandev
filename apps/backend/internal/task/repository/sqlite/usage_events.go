@@ -167,6 +167,9 @@ func (r *Repository) insertUsageEventAndRollup(ctx context.Context, event *model
 	if err := r.insertUsageEventRowTx(ctx, tx, event); err != nil {
 		return err
 	}
+	if err := r.linkUsageEventToRouteAttemptTx(ctx, tx, event); err != nil {
+		return err
+	}
 
 	if r.failUsageEventRollupAttempts > 0 {
 		r.failUsageEventRollupAttempts--

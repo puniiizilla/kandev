@@ -53,6 +53,7 @@ type AgentProfileDTO struct {
 // profile whose kind is "dynamic". Candidates stay opaque profile IDs on the
 // wire; the server resolves and validates their safe display data.
 type DynamicAgentProfileDTO struct {
+	PolicyKind string                     `json:"policy_kind,omitempty"`
 	Version    int64                      `json:"version"`
 	Candidates []DynamicAgentCandidateDTO `json:"candidates"`
 }
@@ -91,6 +92,7 @@ type DynamicAgentCandidateDTO struct {
 	Position           int                    `json:"position"`
 	ExecutionProfileID string                 `json:"execution_profile_id"`
 	Enabled            bool                   `json:"enabled"`
+	RouteClass         string                 `json:"route_class,omitempty"`
 	Policies           *DynamicAgentPolicyDTO `json:"policies,omitempty"`
 	Rules              map[string]string      `json:"rules,omitempty"`
 }

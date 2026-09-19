@@ -45,6 +45,71 @@ func TestEngineSelectsFixedOrderAndFencesGenerations(t *testing.T) {
 	}
 }
 
+func TestEngineCostFirstEscalatesOnlyAfterCheapChainExhaustion(t *testing.T) {
+	engine := NewEngine()
+	profile := Profile{
+		ID: "dynamic-policy", PolicyKind: PolicyOmniRouteCostFirstV1,
+		TaskClass: TaskClassSimple, TaskClassSource: "label",
+		Candidates: []Candidate{
+			{ID: "local", Enabled: true, BindingKey: "local", RouteClass: RouteClassLocal, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+			{ID: "free", Enabled: true, BindingKey: "free", RouteClass: RouteClassFree, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+			{ID: "strong", Enabled: true, BindingKey: "strong", RouteClass: RouteClassStrong, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+		},
+	}
+	selected, err := engine.Select("policy-session", profile, 0, "")
+	if err != nil || selected.ExecutionProfileID != "local" {
+		t.Fatalf("initial selection = %#v, err = %v", selected, err)
+	}
+	if selected.RouteClass != RouteClassLocal || selected.TaskClass != TaskClassSimple || selected.TaskClassSource != "label" {
+		t.Fatalf("initial evidence metadata = %#v", selected)
+	}
+	state, ok := engine.State("policy-session")
+	if !ok || !strings.Contains(state.PolicyStateJSON, `"task_class":"simple"`) || !strings.Contains(state.PolicyStateJSON, `"task_class_source":"label"`) {
+		t.Fatalf("policy snapshot = %q", state.PolicyStateJSON)
+	}
+	failure := &routingerr.Error{Code: routingerr.CodeQuotaLimited, Class: routingerr.ClassHard, FallbackAllowed: true}
+	selected, err = engine.ApplyFailureContext(context.Background(), "policy-session", profile, 1, "local", failure)
+	if err != nil || selected.ExecutionProfileID != "free" {
+		t.Fatalf("cheap fallback = %#v, err = %v", selected, err)
+	}
+	selected, err = engine.ApplyFailureContext(context.Background(), "policy-session", profile, 2, "free", failure)
+	if err != nil || selected.ExecutionProfileID != "strong" {
+		t.Fatalf("strong escalation = %#v, err = %v", selected, err)
+	}
+}
+
+func TestEngineCostFirstDoesNotCycleToEarlierCandidateAfterQualityFallback(t *testing.T) {
+	engine := NewEngine()
+	profile := Profile{
+		ID: "dynamic-policy", PolicyKind: PolicyOmniRouteCostFirstV1,
+		TaskClass: TaskClassSimple, TaskClassSource: "default",
+		Candidates: []Candidate{
+			{ID: "local", Enabled: true, BindingKey: "local", RouteClass: RouteClassLocal, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+			{ID: "free", Enabled: true, BindingKey: "free", RouteClass: RouteClassFree, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+			{ID: "strong", Enabled: true, BindingKey: "strong", RouteClass: RouteClassStrong, Rules: map[string]Action{"on_provider_error": ActionTryNext}},
+		},
+	}
+	first, err := engine.Select("quality-fallback-session", profile, 0, "")
+	if err != nil || first.ExecutionProfileID != "local" {
+		t.Fatalf("initial selection = %#v, err = %v", first, err)
+	}
+	qualityProfile, err := ApplyOmniRoutePolicy(profile, TaskClassSimple, EscalationQualityFail)
+	if err != nil {
+		t.Fatalf("ApplyOmniRoutePolicy: %v", err)
+	}
+	qualityProfile.TaskClassSource = "default"
+	qualityProfile.Candidates = CandidatesAfter(qualityProfile.Candidates, "local")
+	second, err := engine.SelectContextWithReason(context.Background(), "quality-fallback-session", qualityProfile, 1, "local", string(EscalationQualityFail))
+	if err != nil || second.ExecutionProfileID != "free" {
+		t.Fatalf("quality fallback = %#v, err = %v", second, err)
+	}
+	failure := &routingerr.Error{Code: routingerr.CodeQuotaLimited, Class: routingerr.ClassHard, FallbackAllowed: true}
+	third, err := engine.ApplyFailureContext(context.Background(), "quality-fallback-session", profile, 2, "free", failure)
+	if err != nil || third.ExecutionProfileID != "strong" {
+		t.Fatalf("post-quality provider fallback = %#v, err = %v; want strong without cycling to local", third, err)
+	}
+}
+
 func TestEnginePreferenceKeepsRetryOnCurrentCandidate(t *testing.T) {
 	engine := NewEngine()
 	profile := Profile{

@@ -2182,5 +2182,21 @@
   "planCommentMigrationNeedsPlan": "Create or restore a plan to recover saved comments.",
   "planCommentMigrationPending": "Saved plan comments are still being restored. Your message is kept.",
   "toolPayloadRemovedAt": "Tool details removed on {{date}}.",
-  "toolPayloadRemoved": "Tool details removed."
+  "toolPayloadRemoved": "Tool details removed.",
+  "architectureEvidence": "Architecture evidence",
+  "architectureEvidenceLoading": "Loading architecture evidence",
+  "architectureEvidenceUnavailable": "Architecture evidence is unavailable. Retry before review.",
+  "architectureEvidenceRequired": "Required",
+  "architectureChanged": "Architecture changed",
+  "semanticChange": "Semantic change",
+  "baseSha": "Base SHA",
+  "headSha": "Head SHA",
+  "affectedDiagrams": "Affected diagrams",
+  "architectureDiffSummary": "Diff summary",
+  "architectureDiagnostics": "Diagnostics",
+  "openArchitecture": "Open architecture",
+  "openArchitectureDelta": "Open architecture delta",
+  "validation": "Validation",
+  "yes": "Yes",
+  "no": "No"
 }

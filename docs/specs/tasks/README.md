@@ -58,6 +58,7 @@ signals, and task-scoped scheduling contracts.
 - [Detached Workspace Continuity](requirements/detached-workspace-continuity.md)
 - [Task plan append-mode write](requirements/plan-write-append-mode.md)
 - [Task Execution Stages](requirements/execution-stages.md)
+- [Archify lifecycle evidence](requirements/archify-lifecycle-evidence.md)
 - [External task ID idempotency boundaries](requirements/external-id-idempotency-boundaries.md)
 - [External task ID idempotency scenarios](requirements/external-id-idempotency-scenarios.md)
 - [External task ID idempotency](requirements/external-id-idempotency.md)
@@ -151,6 +152,7 @@ signals, and task-scoped scheduling contracts.
 
 - [Additional Session Workspace Reuse](system-design/additional-session-workspace-reuse.md)
 - [Environment-Owned Git Status](system-design/environment-owned-git-status.md)
+- [Archify lifecycle evidence](system-design/archify-lifecycle-evidence.md)
 - [Attach Workspace Sources](system-design/attach-workspace-sources.md)
 - [Command-panel archived task results](system-design/command-panel-archived-task-results.md)
 - [Detached Workspace Continuity](system-design/detached-workspace-continuity.md)

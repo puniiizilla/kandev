@@ -1527,6 +1527,11 @@ func (s *Service) startTask(ctx context.Context, taskID string, agentProfileID s
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload launch session: %w", err)
 	}
+	if s.architectureEvidenceGate != nil {
+		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, taskID); err != nil {
+			return nil, err
+		}
+	}
 	if explicitStartRoute == nil && workflowSessionConfigStepID != "" && s.workflowStepGetter != nil {
 		if sourceStep, stepErr := s.workflowStepGetter.GetStep(ctx, workflowSessionConfigStepID); stepErr != nil {
 			return nil, fmt.Errorf("load workflow source step for session binding: %w", stepErr)
@@ -1937,8 +1942,13 @@ func (s *Service) resolveExecutionForLaunchSession(
 		)
 		return resolved, false, err
 	}
-	resolved, err := s.profileExecutionResolver.Resolve(
-		ctx, session.ID, session.AgentProfileID, session.RouteGeneration, "",
+	task, err := s.repo.GetTask(ctx, session.TaskID)
+	if err != nil {
+		return agentruntime.ProfileExecution{}, false, fmt.Errorf("load task routing classification: %w", err)
+	}
+	resolved, err := s.profileExecutionResolver.ResolveForTask(
+		ctx, session.ID, session.AgentProfileID, session.RouteGeneration, "", task.Labels,
+		dynamicruntime.EscalationNone,
 	)
 	if err != nil {
 		return agentruntime.ProfileExecution{}, false, err
@@ -1968,8 +1978,13 @@ func (s *Service) resolveDurableExecutionForLaunch(
 				Generation: state.Generation,
 			}
 		}
-		resolved, resolveErr := s.profileExecutionResolver.Resolve(
-			ctx, session.ID, session.AgentProfileID, state.Generation, "",
+		task, taskErr := s.repo.GetTask(ctx, session.TaskID)
+		if taskErr != nil {
+			return agentruntime.ProfileExecution{}, false, true, fmt.Errorf("load task routing classification: %w", taskErr)
+		}
+		resolved, resolveErr := s.profileExecutionResolver.ResolveForTask(
+			ctx, session.ID, session.AgentProfileID, state.Generation, "", task.Labels,
+			dynamicruntime.EscalationCheapChainExhausted,
 		)
 		return resolved, resolved.Generation > 0, true, resolveErr
 	}
@@ -2017,6 +2032,7 @@ func applyResolvedExecution(session *models.TaskSession, resolved agentruntime.P
 		return
 	}
 	previousExecutionProfileID := session.ExecutionProfileID
+	launchingClaimedRoute := session.RouteState == "starting"
 	session.ExecutionProfileID = resolved.ExecutionProfileID
 	session.RouteGeneration = resolved.Generation
 	session.RouteState = "starting"
@@ -2028,8 +2044,11 @@ func applyResolvedExecution(session *models.TaskSession, resolved agentruntime.P
 	// A new concrete candidate never inherits a provider-native ACP identity.
 	// Reapplying the persisted route during restart must keep the identity so
 	// native conversation resume remains possible.
-	if previousExecutionProfileID != resolved.ExecutionProfileID {
+	if previousExecutionProfileID != resolved.ExecutionProfileID || launchingClaimedRoute {
 		session.DownstreamACPSessionID = ""
+		for _, key := range dynamicProviderMetadataKeys {
+			delete(session.Metadata, key)
+		}
 	}
 	if resolved.Profile != nil {
 		session.AgentProfileSnapshot = map[string]interface{}{

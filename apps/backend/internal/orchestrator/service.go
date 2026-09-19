@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	agentruntime "github.com/kandev/kandev/internal/agent/runtime"
+	dynamicruntime "github.com/kandev/kandev/internal/agent/runtime/dynamic"
 	"github.com/kandev/kandev/internal/agentctl/types/streams"
 	"github.com/kandev/kandev/internal/common/logger"
 	"github.com/kandev/kandev/internal/events"
@@ -714,10 +715,11 @@ type Service struct {
 
 	// sessionAccessCheck enforces per-user workspace scoping on the
 	// session-keyed WS actions. Nil = unscoped. See SetSessionAccessChecker.
-	sessionAccessCheck  func(ctx context.Context, sessionID string) error
-	sessionControlCheck func(ctx context.Context, sessionID string) error
-	sessionPromptCheck  func(ctx context.Context, sessionID string) error
-	taskPromptCheck     func(ctx context.Context, taskID string) error
+	sessionAccessCheck       func(ctx context.Context, sessionID string) error
+	sessionControlCheck      func(ctx context.Context, sessionID string) error
+	sessionPromptCheck       func(ctx context.Context, sessionID string) error
+	taskPromptCheck          func(ctx context.Context, taskID string) error
+	architectureEvidenceGate ArchitectureEvidenceGate
 
 	// backgroundProbeConfig holds the validated KANDEV_PARKED_PROBE_BUDGET /
 	// KANDEV_PARKED_PROBE_INTERVAL tuning knobs for the background-workload
@@ -1430,6 +1432,15 @@ type Service struct {
 	dynamicSuccessorWorkers sync.WaitGroup
 }
 
+type ArchitectureEvidenceGate interface {
+	PrepareArchitectureBaseline(context.Context, string) error
+	RequireArchitectureEvidence(context.Context, string) error
+}
+
+func (s *Service) SetArchitectureEvidenceGate(gate ArchitectureEvidenceGate) {
+	s.architectureEvidenceGate = gate
+}
+
 func (s *Service) officeStallDependencies() (
 	engine.ParticipantStore,
 	engine.DecisionStore,
@@ -1458,6 +1469,7 @@ type RouteActionRequest struct {
 	SessionID          string
 	Action             RouteAction
 	ExpectedGeneration int64
+	EscalationReason   dynamicruntime.EscalationReason
 }
 
 type RouteActionResult struct {

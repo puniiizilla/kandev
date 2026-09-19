@@ -6,10 +6,11 @@ import "time"
 // routing document. The parent agent_profiles row remains the profile's
 // identity and display configuration.
 type DynamicAgentProfile struct {
-	ProfileID string    `json:"profile_id"`
-	Version   int64     `json:"version"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ProfileID  string    `json:"profile_id"`
+	PolicyKind string    `json:"policy_kind,omitempty"`
+	Version    int64     `json:"version"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // DynamicAgentRoute is one ordered concrete candidate in a dynamic profile.
@@ -19,6 +20,7 @@ type DynamicAgentRoute struct {
 	Position           int    `json:"position"`
 	ExecutionProfileID string `json:"execution_profile_id"`
 	Enabled            bool   `json:"enabled"`
+	RouteClass         string `json:"route_class,omitempty"`
 	RulesJSON          string `json:"rules_json"`
 }
 

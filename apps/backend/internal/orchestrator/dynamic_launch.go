@@ -1143,6 +1143,9 @@ func (s *Service) prepareDynamicRelaunchAfterFailure(
 	if !s.stopDynamicRelaunchPredecessor(ctx, data.AgentExecutionID) {
 		return nil, nil, capturedPrompt{}, false
 	}
+	if !s.clearDynamicRelaunchRuntimeConfiguration(ctx, data.SessionID) {
+		return nil, nil, capturedPrompt{}, false
+	}
 	if !s.resetDynamicRelaunchSession(ctx, data.SessionID) {
 		return nil, nil, capturedPrompt{}, false
 	}
@@ -1150,6 +1153,26 @@ func (s *Service) prepareDynamicRelaunchAfterFailure(
 	s.completeTurnForSession(ctx, data.SessionID)
 	s.retireExecutionActivityAndPublish(ctx, data.TaskID, data.SessionID, data.AgentExecutionID)
 	return task, session, prompt, true
+}
+
+var dynamicProviderMetadataKeys = []string{
+	"acp_session_id",
+	models.SessionMetaKeySessionMode,
+	models.SessionMetaKeyRuntimeConfig,
+	models.SessionMetaKeyRuntimeConfigOverrides,
+	models.SessionMetaKeyACPConfigBaseline,
+	models.SessionMetaKeyACPModelState,
+	models.SessionMetaKeyContextWindow,
+	models.SessionMetaKeyLastAgentError,
+}
+
+func (s *Service) clearDynamicRelaunchRuntimeConfiguration(ctx context.Context, sessionID string) bool {
+	for _, key := range dynamicProviderMetadataKeys {
+		if err := s.repo.SetSessionMetadataKey(ctx, sessionID, key, nil); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) stopDynamicRelaunchPredecessor(ctx context.Context, agentExecutionID string) bool {

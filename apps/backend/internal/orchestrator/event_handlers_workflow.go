@@ -4049,7 +4049,22 @@ func (s *Service) PreflightWorkflowStepMove(
 	currentSession *models.TaskSession,
 	targetStep *wfmodels.WorkflowStep,
 ) error {
-	return s.preflightWorkflowStepCredentials(ctx, taskID, currentSession, targetStep)
+	if err := s.preflightWorkflowStepCredentials(ctx, taskID, currentSession, targetStep); err != nil {
+		return err
+	}
+	return s.preflightArchitectureEvidence(ctx, taskID, targetStep)
+}
+
+func (s *Service) preflightArchitectureEvidence(ctx context.Context, taskID string, targetStep *wfmodels.WorkflowStep) error {
+	if targetStep == nil || (targetStep.StageType != wfmodels.StageTypeReview && targetStep.StageType != wfmodels.StageTypeApproval) {
+		return nil
+	}
+	if s.architectureEvidenceGate == nil {
+		// ponytail: focused service compositions omit optional task integrations;
+		// production wiring always installs the gate before routes are served.
+		return nil
+	}
+	return s.architectureEvidenceGate.RequireArchitectureEvidence(ctx, taskID)
 }
 
 // maybySwitchSessionForProfile preserves the legacy processOnEnter failure
@@ -7327,6 +7342,11 @@ func (s *Service) applyEngineTransitionWithCommitMode(
 				zap.Error(err))
 			return false
 		}
+	}
+	if err := s.preflightArchitectureEvidence(ctx, taskID, targetStep); err != nil {
+		s.logger.Warn("architecture evidence preflight failed, skipping transition",
+			zap.String("task_id", taskID), zap.String("step_id", result.ToStepID), zap.Error(err))
+		return false
 	}
 
 	terminalTarget := s.workflowStepIsTerminal(ctx, targetStep.ID)

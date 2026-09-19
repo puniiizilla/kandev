@@ -77,6 +77,9 @@ type RepositoryDTO struct {
 	CleanupScript          string                       `json:"cleanup_script"`
 	DevScript              string                       `json:"dev_script"`
 	CopyFiles              string                       `json:"copy_files"`
+	ArchitectureGitRef     string                       `json:"architecture_git_ref"`
+	ArchitecturePath       string                       `json:"architecture_path"`
+	ArchifyRuntime         string                       `json:"archify_runtime"`
 	SecretBindings         []RepositorySecretBindingDTO `json:"secret_bindings,omitempty"`
 	CreatedAt              time.Time                    `json:"created_at"`
 	UpdatedAt              time.Time                    `json:"updated_at"`
@@ -782,6 +785,9 @@ func FromRepository(repository *models.Repository) RepositoryDTO {
 		CleanupScript:          repository.CleanupScript,
 		DevScript:              repository.DevScript,
 		CopyFiles:              repository.CopyFiles,
+		ArchitectureGitRef:     repository.ArchitectureGitRef,
+		ArchitecturePath:       repository.ArchitecturePath,
+		ArchifyRuntime:         repository.ArchifyRuntime,
 		SecretBindings:         bindings,
 		CreatedAt:              repository.CreatedAt,
 		UpdatedAt:              repository.UpdatedAt,

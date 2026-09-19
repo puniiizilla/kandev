@@ -43,6 +43,7 @@ func RegisterTaskNotifications(ctx context.Context, eventBus bus.EventBus, hub *
 	b.subscribe(eventBus, events.AgentProfileDeleted, ws.ActionAgentProfileDeleted)
 	b.subscribe(eventBus, events.TaskCreated, ws.ActionTaskCreated)
 	b.subscribe(eventBus, events.TaskUpdated, ws.ActionTaskUpdated)
+	b.subscribe(eventBus, events.TaskArchitectureEvidenceUpdated, ws.ActionTaskArchitectureEvidenceUpdated)
 	b.subscribe(eventBus, events.TaskReordered, ws.ActionTaskReordered)
 	b.subscribe(eventBus, events.SessionWorkspaceSourcesUpdated, ws.ActionSessionWorkspaceSourcesUpdated)
 	b.subscribe(eventBus, events.TaskDeleted, ws.ActionTaskDeleted)
@@ -249,6 +250,12 @@ func (b *TaskEventBroadcaster) routeBroadcast(
 	msg *ws.Message,
 ) error {
 	switch action {
+	case ws.ActionTaskArchitectureEvidenceUpdated:
+		taskID := extractStringField(data, "task_id")
+		if taskID != "" {
+			b.hub.BroadcastToTask(taskID, msg)
+		}
+		return nil
 	case ws.ActionTaskPlanCommentsChanged:
 		taskID := extractStringField(data, "task_id")
 		if snapshot, ok := data.(*models.TaskPlanCommentSnapshot); ok {

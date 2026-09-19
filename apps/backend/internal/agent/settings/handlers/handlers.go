@@ -620,6 +620,7 @@ func (h *Handlers) httpCreateProfile(c *gin.Context) {
 		if errors.Is(err, controller.ErrDynamicProfileCandidatesRequired) ||
 			errors.Is(err, controller.ErrDynamicProfilePositions) ||
 			errors.Is(err, controller.ErrDynamicProfileRule) ||
+			errors.Is(err, controller.ErrDynamicProfileRouteClass) ||
 			errors.Is(err, controller.ErrDynamicProfileCandidate) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -674,6 +675,7 @@ func (h *Handlers) httpUpdateProfile(c *gin.Context) {
 		if errors.Is(err, controller.ErrDynamicProfileCandidatesRequired) ||
 			errors.Is(err, controller.ErrDynamicProfilePositions) ||
 			errors.Is(err, controller.ErrDynamicProfileRule) ||
+			errors.Is(err, controller.ErrDynamicProfileRouteClass) ||
 			errors.Is(err, controller.ErrDynamicProfileCandidate) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

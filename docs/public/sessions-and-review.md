@@ -7,6 +7,18 @@ description: "Run named parallel agent sessions, inspect changes, review diffs, 
 
 A session is one agent conversation on a task. Use it to direct work, inspect changes, and give precise feedback before you merge or ship. Concurrent sessions share the same task environment, so give each writer explicit file ownership.
 
+## Architecture evidence
+
+Architecture-related tasks capture an Archify baseline from the task base commit. Before review or
+approval, Kandev requires a clean committed head, validates and renders the repository-bound
+Archify sources, and runs Archify's architecture comparison. The Changes panel shows pinned SHAs,
+validation, affected diagrams, and semantic-change status beside Git changes and tests. PASS never
+approves or merges a task; human review and approval remain required.
+
+For stale or failed evidence, commit pending work, correct the repository-owned source or binding,
+then select **Retry**. Kandev stores bounded receipts and hashes only. Architecture JSON remains in
+Git; renders and deltas remain disposable cache.
+
 ## Quick path
 
 1. Start a session with a scoped prompt.

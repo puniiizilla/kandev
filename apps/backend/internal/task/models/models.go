@@ -2013,6 +2013,9 @@ type Repository struct {
 	CleanupScript          string                    `json:"cleanup_script"`
 	DevScript              string                    `json:"dev_script"`
 	CopyFiles              string                    `json:"copy_files"`
+	ArchitectureGitRef     string                    `json:"architecture_git_ref"`
+	ArchitecturePath       string                    `json:"architecture_path"`
+	ArchifyRuntime         string                    `json:"archify_runtime"`
 	SecretBindings         []RepositorySecretBinding `json:"secret_bindings,omitempty"`
 	CreatedAt              time.Time                 `json:"created_at"`
 	UpdatedAt              time.Time                 `json:"updated_at"`

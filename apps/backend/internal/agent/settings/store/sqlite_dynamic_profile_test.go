@@ -135,3 +135,42 @@ func TestSQLiteRepositoryDynamicProfileCRUDUsesOptimisticVersions(t *testing.T) 
 		t.Fatalf("stale update error = %v, want %v", err, ErrDynamicProfileVersionConflict)
 	}
 }
+
+func TestSQLiteRepositoryDynamicProfilePolicyRoundTrip(t *testing.T) {
+	// @covers AC-AGENTS-OMNIROUTE-POLICY-001.2
+	db, err := sqlx.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	repo, err := newSQLiteRepository(db, db, nil, false)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	ctx := context.Background()
+	if err := repo.CreateAgent(ctx, &models.Agent{ID: "dynamic", Name: "dynamic"}); err != nil {
+		t.Fatalf("create family: %v", err)
+	}
+	for _, profile := range []*models.AgentProfile{
+		{ID: "policy", AgentID: "dynamic", Name: "Policy", AgentDisplayName: "Dynamic"},
+		{ID: "local", AgentID: "dynamic", Name: "Local", AgentDisplayName: "Dynamic"},
+	} {
+		if err := repo.CreateAgentProfile(ctx, profile); err != nil {
+			t.Fatalf("create profile: %v", err)
+		}
+	}
+	want := &models.DynamicAgentProfile{ProfileID: "policy", PolicyKind: "omniroute_cost_first_v1", Version: 1}
+	if err := repo.CreateDynamicAgentProfile(ctx, want, []models.DynamicAgentRoute{{
+		DynamicProfileID: "policy", Position: 0, ExecutionProfileID: "local", Enabled: true,
+		RouteClass: "local", RulesJSON: `{}`,
+	}}); err != nil {
+		t.Fatalf("create dynamic profile: %v", err)
+	}
+	got, routes, err := repo.GetDynamicAgentProfile(ctx, "policy")
+	if err != nil {
+		t.Fatalf("get dynamic profile: %v", err)
+	}
+	if got.PolicyKind != want.PolicyKind || len(routes) != 1 || routes[0].RouteClass != "local" {
+		t.Fatalf("profile = %#v routes = %#v", got, routes)
+	}
+}

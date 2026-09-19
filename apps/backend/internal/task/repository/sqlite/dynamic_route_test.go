@@ -84,6 +84,53 @@ func TestDynamicRouteStateAndAttemptsPersistAcrossRepositoryReads(t *testing.T) 
 	}
 }
 
+func TestRecordRouteQualityResultFailsClosed(t *testing.T) {
+	repo := newRepoForSessionTests(t)
+	ctx := context.Background()
+	if err := repo.CreateTask(ctx, &models.Task{ID: "quality-task", Title: "Quality"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateTask(ctx, &models.Task{ID: "other-task", Title: "Other"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateTaskSession(ctx, &models.TaskSession{ID: "quality-session", TaskID: "quality-task", State: models.TaskSessionStateWaitingForInput}); err != nil {
+		t.Fatal(err)
+	}
+	decision := dynamicruntime.RouteDecision{SessionID: "quality-session", LogicalProfileID: "dynamic", ExecutionProfileID: "local", Generation: 1, ProfileVersion: 1}
+	state := dynamicruntime.RouteState{SessionID: "quality-session", LogicalProfileID: "dynamic", ExecutionProfileID: "local", Generation: 1, ProfileVersion: 1, Status: "active", UpdatedAt: time.Now().UTC()}
+	if err := repo.RecordRouteDecision(ctx, decision, state); err != nil {
+		t.Fatal(err)
+	}
+	attempts, err := repo.ListRouteAttempts(ctx, "quality-session")
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("attempts = %#v, err = %v", attempts, err)
+	}
+	result := dynamicruntime.RouteQualityResult{TaskID: "quality-task", SessionID: "quality-session", RouteAttemptID: attempts[0].ID, Result: dynamicruntime.QualityFail, Source: dynamicruntime.QualitySourceReview, SourceReference: "review-1"}
+	if err := repo.RecordRouteQualityResult(ctx, result); err != nil {
+		t.Fatalf("RecordRouteQualityResult: %v", err)
+	}
+	evidence, err := repo.ListTaskRoutingEvidence(ctx, "quality-task")
+	if err != nil || len(evidence.Attempts) != 1 {
+		t.Fatalf("quality evidence = %#v, err = %v", evidence, err)
+	}
+	if evidence.Attempts[0].QualityResult != dynamicruntime.QualityFail || evidence.Attempts[0].QualitySource != dynamicruntime.QualitySourceReview || evidence.Attempts[0].FailureCategory != dynamicruntime.FailureCategoryQualityGate {
+		t.Fatalf("quality attribution = %#v", evidence.Attempts[0])
+	}
+	if err := repo.RecordRouteQualityResult(ctx, result); !errors.Is(err, dynamicruntime.ErrDuplicateQualityResult) {
+		t.Fatalf("duplicate error = %v", err)
+	}
+	result.TaskID = "other-task"
+	result.SourceReference = "review-2"
+	if err := repo.RecordRouteQualityResult(ctx, result); !errors.Is(err, dynamicruntime.ErrQualityResultOwnership) {
+		t.Fatalf("cross-task error = %v", err)
+	}
+	result.TaskID = "quality-task"
+	result.RouteAttemptID = "missing"
+	if err := repo.RecordRouteQualityResult(ctx, result); !errors.Is(err, dynamicruntime.ErrStaleQualityResult) {
+		t.Fatalf("stale error = %v", err)
+	}
+}
+
 func TestClaimRouteStateDoesNotInsertAfterRestartWithNonZeroExpectation(t *testing.T) {
 	repo := newRepoForSessionTests(t)
 	ctx := context.Background()

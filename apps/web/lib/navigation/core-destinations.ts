@@ -30,6 +30,7 @@ import {
   IconHexagon,
   IconHome,
   IconList,
+  IconTopologyStar,
   IconSettings,
   IconTicket,
 } from "@tabler/icons-react";
@@ -108,6 +109,19 @@ export const APP_DESTINATIONS: Destination[] = [
       labelKey: "common:commandGoToThreads",
       keywordsKey: "common:commandGoToThreadsKeywords",
       href: "/threads",
+    },
+  },
+  {
+    id: "architecture",
+    labelKey: "architecture:title",
+    icon: IconTopologyStar,
+    section: "insights",
+    href: "/architecture",
+    surfaces: EVERYWHERE,
+    palette: {
+      id: "nav-architecture",
+      labelKey: "architecture:commandGoToArchitecture",
+      keywordsKey: "architecture:commandGoToArchitectureKeywords",
     },
   },
   {

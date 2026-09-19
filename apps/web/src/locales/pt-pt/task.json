@@ -2182,5 +2182,21 @@
   "planCommentMigrationNeedsPlan": "Crie ou restaure um plano para recuperar os comentários guardados.",
   "planCommentMigrationPending": "Os comentários do plano guardados ainda estão a ser restaurados. A sua mensagem é mantida.",
   "toolPayloadRemovedAt": "Detalhes da ferramenta removidos em {{date}}.",
-  "toolPayloadRemoved": "Detalhes da ferramenta removidos."
+  "toolPayloadRemoved": "Detalhes da ferramenta removidos.",
+  "architectureEvidence": "Evidência de arquitetura",
+  "architectureEvidenceLoading": "A carregar evidência de arquitetura",
+  "architectureEvidenceUnavailable": "A evidência de arquitetura não está disponível. Tente novamente antes da revisão.",
+  "architectureEvidenceRequired": "Obrigatória",
+  "architectureChanged": "Arquitetura alterada",
+  "semanticChange": "Alteração semântica",
+  "baseSha": "SHA base",
+  "headSha": "SHA atual",
+  "affectedDiagrams": "Diagramas afetados",
+  "architectureDiffSummary": "Resumo das diferenças",
+  "architectureDiagnostics": "Diagnósticos",
+  "openArchitecture": "Abrir arquitetura",
+  "openArchitectureDelta": "Abrir diferença de arquitetura",
+  "validation": "Validação",
+  "yes": "Sim",
+  "no": "Não"
 }

@@ -32,20 +32,28 @@ var (
 	// fail closed rather than silently degrade to a generation-only claim,
 	// which would let two concurrent callers both win the same transition.
 	ErrStatusClaimUnsupported = errors.New("dynamic route persistence does not support status-fenced claims")
+	ErrDuplicateQualityResult = errors.New("route quality result already recorded")
+	ErrQualityResultOwnership = errors.New("route quality result does not belong to task")
+	ErrStaleQualityResult     = errors.New("route quality result is stale")
 )
 
 type Candidate struct {
 	ID         string
 	Enabled    bool
 	BindingKey string
+	RouteClass RouteClass
 	Rules      map[string]Action
 	Policies   routingpolicy.Document
 }
 
 type Profile struct {
-	ID         string
-	Version    int64
-	Candidates []Candidate
+	ID               string
+	Version          int64
+	PolicyKind       string
+	TaskClass        TaskClass
+	TaskClassSource  string
+	EscalationReason EscalationReason
+	Candidates       []Candidate
 }
 
 type RouteState struct {
@@ -64,6 +72,9 @@ type RouteState struct {
 // is stored as JSON so older installations can add fields without changing
 // candidate or session identity columns.
 type PolicyState struct {
+	TaskClass        TaskClass                 `json:"task_class,omitempty"`
+	TaskClassSource  string                    `json:"task_class_source,omitempty"`
+	EscalationReason EscalationReason          `json:"escalation_reason,omitempty"`
 	FailureCode      routingerr.Code           `json:"failure_code"`
 	FailureClass     routingerr.Class          `json:"failure_class"`
 	CatalogueVersion string                    `json:"catalogue_version"`
@@ -89,9 +100,15 @@ type RouteDecision struct {
 	CatalogueVersion   string
 	RetryOrdinal       int64
 	PendingOutcome     routingpolicy.Outcome
+	RouteClass         RouteClass
+	TaskClass          TaskClass
+	TaskClassSource    string
+	EscalationReason   EscalationReason
+	FailureCategory    FailureCategory
 }
 
 type RouteAttempt struct {
+	ID                 string
 	SessionID          string
 	LogicalProfileID   string
 	ExecutionProfileID string
@@ -99,6 +116,75 @@ type RouteAttempt struct {
 	ProfileVersion     int64
 	Reason             string
 	CreatedAt          time.Time
+	TaskID             string
+	RouteClass         RouteClass
+	TaskClass          TaskClass
+	TaskClassSource    string
+	AttemptOrdinal     int64
+	EscalationReason   EscalationReason
+	FailureCategory    FailureCategory
+}
+
+type RoutingEvidence struct {
+	AttemptID         string           `json:"attempt_id"`
+	TaskID            string           `json:"task_id"`
+	SessionID         string           `json:"session_id"`
+	SelectedRoute     string           `json:"selected_route"`
+	RouteClass        RouteClass       `json:"route_class,omitempty"`
+	TaskClass         TaskClass        `json:"task_class,omitempty"`
+	TaskClassSource   string           `json:"task_class_source,omitempty"`
+	AttemptOrdinal    int64            `json:"attempt_ordinal"`
+	EscalationReason  EscalationReason `json:"escalation_reason,omitempty"`
+	FailureCategory   FailureCategory  `json:"failure_category,omitempty"`
+	QualityResult     QualityResult    `json:"quality_result,omitempty"`
+	QualitySource     QualitySource    `json:"quality_source,omitempty"`
+	Provider          *string          `json:"provider,omitempty"`
+	Model             *string          `json:"model,omitempty"`
+	TokensIn          *int64           `json:"tokens_in,omitempty"`
+	TokensCachedRead  *int64           `json:"tokens_cached_read,omitempty"`
+	TokensCachedWrite *int64           `json:"tokens_cached_write,omitempty"`
+	TokensOut         *int64           `json:"tokens_out,omitempty"`
+	TokensThought     *int64           `json:"tokens_thought,omitempty"`
+	TokensTotal       *int64           `json:"tokens_total,omitempty"`
+	ReportedCost      *int64           `json:"reported_cost_subcents,omitempty"`
+	CostSource        *string          `json:"cost_source,omitempty"`
+	Estimated         *bool            `json:"estimated,omitempty"`
+	UsageEventID      *string          `json:"usage_event_id,omitempty"`
+	LatencyMS         *int64           `json:"latency_ms,omitempty"`
+	Timestamp         time.Time        `json:"timestamp"`
+}
+
+type RoutingEvidenceResult struct {
+	Attempts            []RoutingEvidence `json:"attempts"`
+	PaidEscalationCount int64             `json:"paid_escalation_count"`
+}
+
+type QualityResult string
+
+const (
+	QualityPass     QualityResult = "pass"
+	QualityFail     QualityResult = "fail"
+	QualityRetry    QualityResult = "retry"
+	QualityEscalate QualityResult = "escalate"
+)
+
+type QualitySource string
+
+const (
+	QualitySourceWorkflow     QualitySource = "workflow"
+	QualitySourceReview       QualitySource = "review"
+	QualitySourceVerification QualitySource = "verification"
+	QualitySourceOperator     QualitySource = "operator"
+)
+
+type RouteQualityResult struct {
+	TaskID          string
+	SessionID       string
+	RouteAttemptID  string
+	Result          QualityResult
+	Source          QualitySource
+	SourceReference string
+	CreatedAt       time.Time
 }
 
 // ContinuationRecord is the bounded handoff package persisted for a route
@@ -150,6 +236,10 @@ type GenerationStatusClaimer interface {
 // for callers that only need the narrow Save/Append contract.
 type DecisionRecorder interface {
 	RecordRouteDecision(context.Context, RouteDecision, RouteState) error
+}
+
+type AttemptFailureRecorder interface {
+	RecordRouteAttemptFailure(context.Context, string, int64, FailureCategory) error
 }
 
 type NoEligibleCandidateError struct {

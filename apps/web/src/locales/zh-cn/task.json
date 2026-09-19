@@ -2182,5 +2182,21 @@
   "planCommentMigrationNeedsPlan": "请创建或恢复计划，以恢复已保存的评论。",
   "planCommentMigrationPending": "仍在恢复已保存的计划评论。您的消息会保留。",
   "toolPayloadRemovedAt": "工具详细数据已于 {{date}} 删除。",
-  "toolPayloadRemoved": "工具详细数据已删除。"
+  "toolPayloadRemoved": "工具详细数据已删除。",
+  "architectureEvidence": "架构证据",
+  "architectureEvidenceLoading": "正在加载架构证据",
+  "architectureEvidenceUnavailable": "架构证据不可用。请在审核前重试。",
+  "architectureEvidenceRequired": "必需",
+  "architectureChanged": "架构已更改",
+  "semanticChange": "语义更改",
+  "baseSha": "基础 SHA",
+  "headSha": "当前 SHA",
+  "affectedDiagrams": "受影响的图表",
+  "architectureDiffSummary": "差异摘要",
+  "architectureDiagnostics": "诊断信息",
+  "openArchitecture": "打开架构",
+  "openArchitectureDelta": "打开架构差异",
+  "validation": "验证",
+  "yes": "是",
+  "no": "否"
 }

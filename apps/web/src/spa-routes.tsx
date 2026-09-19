@@ -9,6 +9,7 @@ import { StatsPageClient } from "@/app/stats/stats-page-client";
 import { isRangeKey } from "@/app/stats/stats-utils";
 import type { RangeKey } from "@/app/stats/stats-utils";
 import { TasksPageClient } from "@/app/tasks/tasks-page-client";
+import { ArchitecturePageClient } from "@/app/architecture/architecture-page-client";
 import { AutomationDetailPage } from "@/components/runs/automation-detail-page";
 import { RunsListPage } from "@/components/runs/runs-list-page";
 import { RunsPageClient } from "@/components/runs/runs-page-client";
@@ -97,6 +98,7 @@ type SpaRoute =
       mode?: string;
     }
   | { kind: "tasks" }
+  | { kind: "architecture" }
   | { kind: "threads" }
   | { kind: "github" }
   | { kind: "gitlab" }
@@ -244,9 +246,9 @@ function resolveTaskDetailRoute(
 }
 
 function resolveTopLevelRoute(normalized: string, searchParams: URLSearchParams): SpaRoute | null {
+  const simpleRoute = SIMPLE_TOP_LEVEL_ROUTES[normalized];
+  if (simpleRoute) return simpleRoute;
   switch (normalized) {
-    case "/tasks":
-      return { kind: "tasks" };
     case "/threads":
       return { kind: "threads" };
     case "/github":
@@ -273,6 +275,11 @@ function resolveTopLevelRoute(normalized: string, searchParams: URLSearchParams)
       return null;
   }
 }
+
+const SIMPLE_TOP_LEVEL_ROUTES: Record<string, SpaRoute> = {
+  "/tasks": { kind: "tasks" },
+  "/architecture": { kind: "architecture" },
+};
 
 function resolveNestedRoute(normalized: string): SpaRoute | null {
   if (normalized === "/settings" || normalized.startsWith("/settings/")) {
@@ -463,6 +470,8 @@ function ExternalDataRoute({
 }) {
   const workspaceId = data.activeWorkspaceId ?? undefined;
   switch (route.kind) {
+    case "architecture":
+      return <ArchitecturePageClient workspaceId={workspaceId} />;
     case "github":
       return (
         <GitHubPageClient

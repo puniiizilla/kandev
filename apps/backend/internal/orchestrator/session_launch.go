@@ -249,6 +249,11 @@ func (s *Service) launchPrepare(ctx context.Context, req *LaunchSessionRequest) 
 	if err != nil {
 		return nil, err
 	}
+	if s.architectureEvidenceGate != nil {
+		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, req.TaskID); err != nil {
+			return nil, err
+		}
+	}
 	return &LaunchSessionResponse{
 		Success:   true,
 		TaskID:    req.TaskID,

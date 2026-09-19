@@ -1978,6 +1978,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, req *UpdateTaskRequ
 		task.Priority = *req.Priority
 	}
 	if req.State != nil && task.State != *req.State {
+		if err := s.preflightArchitectureReviewState(ctx, id, *req.State); err != nil {
+			return nil, err
+		}
 		current := task.State
 		oldState = &current
 		task.State = *req.State

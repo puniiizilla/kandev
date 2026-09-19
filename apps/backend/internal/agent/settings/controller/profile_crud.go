@@ -22,7 +22,10 @@ import (
 	"github.com/kandev/kandev/internal/secrets"
 )
 
-const dynamicProfileKind = "dynamic"
+const (
+	dynamicProfileKind       = "dynamic"
+	omniRouteCostFirstPolicy = "omniroute_cost_first_v1"
+)
 
 type CreateProfileRequest struct {
 	AgentID           string
@@ -144,7 +147,11 @@ func (c *Controller) createDynamicProfile(
 	if err := c.repo.CreateAgentProfile(ctx, profile); err != nil {
 		return nil, err
 	}
-	dynamic := &models.DynamicAgentProfile{ProfileID: profile.ID, Version: 1}
+	dynamic := &models.DynamicAgentProfile{
+		ProfileID:  profile.ID,
+		PolicyKind: req.Dynamic.PolicyKind,
+		Version:    1,
+	}
 	if err := dynamicRepo.CreateDynamicAgentProfile(ctx, dynamic, routes); err != nil {
 		if cleanupErr := c.repo.DeleteAgentProfile(ctx, profile.ID); cleanupErr != nil {
 			return nil, fmt.Errorf("%w; cleanup dynamic profile parent: %v", err, cleanupErr)
@@ -275,6 +282,28 @@ func validateDynamicAgentProfile(profile *dto.DynamicAgentProfileDTO) error {
 			return err
 		}
 	}
+	if profile.PolicyKind == "" {
+		return nil
+	}
+	if profile.PolicyKind != omniRouteCostFirstPolicy {
+		return fmt.Errorf("%w: unsupported policy kind %q", ErrDynamicProfileRouteClass, profile.PolicyKind)
+	}
+	seenRequired := map[string]bool{"local": false, "free": false}
+	validClasses := map[string]bool{"local": true, "free": true, "low_cost": true, "strong": true}
+	for position, candidate := range profile.Candidates {
+		if !candidate.Enabled {
+			continue
+		}
+		if !validClasses[candidate.RouteClass] {
+			return fmt.Errorf("%w: candidates[%d].route_class=%q", ErrDynamicProfileRouteClass, position, candidate.RouteClass)
+		}
+		if _, required := seenRequired[candidate.RouteClass]; required {
+			seenRequired[candidate.RouteClass] = true
+		}
+	}
+	if !seenRequired["local"] || !seenRequired["free"] {
+		return fmt.Errorf("%w: enabled local and free candidates are required", ErrDynamicProfileRouteClass)
+	}
 	return nil
 }
 
@@ -296,6 +325,7 @@ func dynamicRoutesFromDTO(profileID string, profile *dto.DynamicAgentProfileDTO)
 			Position:           candidate.Position,
 			ExecutionProfileID: strings.TrimSpace(candidate.ExecutionProfileID),
 			Enabled:            candidate.Enabled,
+			RouteClass:         candidate.RouteClass,
 			RulesJSON:          string(policyJSON),
 		})
 	}
@@ -307,6 +337,7 @@ func dynamicProfileDTO(profile *models.DynamicAgentProfile, routes []models.Dyna
 		return nil, nil
 	}
 	result := &dto.DynamicAgentProfileDTO{
+		PolicyKind: profile.PolicyKind,
 		Version:    profile.Version,
 		Candidates: make([]dto.DynamicAgentCandidateDTO, 0, len(routes)),
 	}
@@ -319,6 +350,7 @@ func dynamicProfileDTO(profile *models.DynamicAgentProfile, routes []models.Dyna
 			Position:           route.Position,
 			ExecutionProfileID: route.ExecutionProfileID,
 			Enabled:            route.Enabled,
+			RouteClass:         route.RouteClass,
 			Policies:           &policy,
 		})
 	}
@@ -385,7 +417,7 @@ func (c *Controller) UpdateProfile(ctx context.Context, req UpdateProfileRequest
 		if err != nil {
 			return nil, err
 		}
-		dynamic = &models.DynamicAgentProfile{ProfileID: profile.ID}
+		dynamic = &models.DynamicAgentProfile{ProfileID: profile.ID, PolicyKind: req.Dynamic.PolicyKind}
 	}
 	if req.Name != nil {
 		profile.Name = *req.Name

@@ -1069,6 +1069,9 @@ export class ApiClient {
       setup_script?: string;
       cleanup_script?: string;
       copy_files?: string;
+      architecture_git_ref?: string;
+      architecture_path?: string;
+      archify_runtime?: string;
       secret_bindings?: Array<{ key: string; secret_id: string }>;
     },
   ): Promise<void> {
@@ -1301,6 +1304,14 @@ export class ApiClient {
       workflow_step_id: workflowStepId,
       ...(entryOptions ? { entry_options: entryOptions } : {}),
     });
+  }
+
+  async getArchitectureEvidence(taskId: string): Promise<Record<string, unknown>> {
+    return this.request("GET", `/api/v1/tasks/${taskId}/architecture-evidence`);
+  }
+
+  async refreshArchitectureEvidence(taskId: string): Promise<Record<string, unknown>> {
+    return this.request("POST", `/api/v1/tasks/${taskId}/architecture-evidence/refresh`);
   }
 
   async updateWorkflow(

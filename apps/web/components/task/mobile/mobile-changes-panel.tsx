@@ -20,6 +20,7 @@ import {
 import { contributionHistoryExplanationKey } from "@/hooks/domains/session/use-contribution-history-explanation";
 import type { SelectedDiff } from "../task-layout";
 import type { OpenDiffOptions, DiffSheetMode } from "../changes-diff-target";
+import { ArchitectureEvidenceCard } from "../architecture-evidence-card";
 
 type MobileChangesPanelProps = {
   selectedDiff: SelectedDiff | null;
@@ -188,6 +189,7 @@ export const MobileChangesPanel = memo(function MobileChangesPanel({
           comparisonTargets={data.git.comparisonTargets}
           {...buildContributionHeaderProps(data)}
         />
+        <ArchitectureEvidenceCard taskId={data.activeTaskId} mobile />
         <ChangesPanelBody {...bodyProps} comparisonRequestToken={comparisonRequestToken} />
       </PanelRoot>
 

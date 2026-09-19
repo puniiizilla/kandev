@@ -30,6 +30,7 @@ import (
 	"github.com/kandev/kandev/internal/agentctl/tracing"
 	analyticshandlers "github.com/kandev/kandev/internal/analytics/handlers"
 	analyticsrepository "github.com/kandev/kandev/internal/analytics/repository"
+	"github.com/kandev/kandev/internal/architecture"
 	"github.com/kandev/kandev/internal/auth"
 	"github.com/kandev/kandev/internal/auth/authn"
 	authhttpapi "github.com/kandev/kandev/internal/auth/httpapi"
@@ -1338,6 +1339,10 @@ func registerTaskRoutes(p routeParams, planService *taskservice.PlanService, han
 		})
 	}
 	taskhandlers.RegisterRepositoryRoutes(p.router, p.gateway.Dispatcher, p.taskSvc, p.log)
+	architectureService := architecture.NewService(p.taskSvc, "")
+	p.taskSvc.SetArchitectureService(architectureService)
+	p.orchestratorSvc.SetArchitectureEvidenceGate(p.taskSvc)
+	architecture.RegisterRoutes(p.router, architectureService)
 	taskhandlers.RegisterRepositorySetRoutes(p.router, p.gateway.Dispatcher, p.taskSvc, p.log)
 	taskhandlers.RegisterRepositoryBranchPolicyRoutes(p.router, p.gateway.Dispatcher, p.taskSvc, p.log)
 	taskhandlers.RegisterExecutorRoutes(p.router, p.gateway.Dispatcher, p.taskSvc, p.log)

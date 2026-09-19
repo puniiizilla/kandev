@@ -7,6 +7,14 @@ description: "Create scoped tasks, configure workflow behavior, use plans, and m
 
 A task is the work to deliver. A workflow is the sequence of steps it follows. Use a task for the outcome and a workflow for the review process.
 
+## Architecture evidence gates
+
+Architecture labels, an explicit human override, or changed files under the configured Archify path
+make architecture evidence required. Required tasks capture a SHA-bound baseline and cannot enter
+review or approval until the committed task head validates and Archify comparison finishes. Dirty
+worktrees, changed heads, missing bindings, and failed validation block admission with a retryable
+status. The evidence does not replace workflow transitions, reviewer decisions, or human approval.
+
 ## Quick path
 
 1. Add a repository to a workspace.

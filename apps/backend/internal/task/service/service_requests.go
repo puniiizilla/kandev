@@ -264,6 +264,9 @@ type UpdateRepositoryRequest struct {
 	CleanupScript          *string `json:"cleanup_script,omitempty"`
 	DevScript              *string `json:"dev_script,omitempty"`
 	CopyFiles              *string `json:"copy_files,omitempty"`
+	ArchitectureGitRef     *string `json:"architecture_git_ref,omitempty"`
+	ArchitecturePath       *string `json:"architecture_path,omitempty"`
+	ArchifyRuntime         *string `json:"archify_runtime,omitempty"`
 	// SecretBindings uses nil to preserve the current set and a non-nil empty
 	// slice to clear it.
 	SecretBindings *[]RepositorySecretBindingInput `json:"secret_bindings,omitempty"`

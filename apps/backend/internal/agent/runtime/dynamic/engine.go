@@ -3,6 +3,7 @@ package dynamic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -154,6 +155,7 @@ func (e *Engine) selectContext(
 	}
 	generation := currentGeneration + 1
 	now := e.now()
+	policyStateJSON := policySnapshotJSON(profile)
 	for _, candidate := range profile.Candidates {
 		if !e.candidateSelectable(candidate, sessionID, generation, excludeProfileID, preferredProfileID, now) {
 			continue
@@ -166,6 +168,10 @@ func (e *Engine) selectContext(
 			ProfileVersion:     profile.Version,
 			Reason:             reason,
 			Status:             routeStatusStarting,
+			RouteClass:         candidate.RouteClass,
+			TaskClass:          profile.TaskClass,
+			TaskClassSource:    profile.TaskClassSource,
+			EscalationReason:   profile.EscalationReason,
 		}
 		nextState := RouteState{
 			SessionID:          sessionID,
@@ -174,11 +180,15 @@ func (e *Engine) selectContext(
 			Generation:         generation,
 			ProfileVersion:     profile.Version,
 			Status:             routeStatusStarting,
+			PolicyStateJSON:    policyStateJSON,
 			UpdatedAt:          now,
 		}
 		if err := e.claimAndPersist(ctx, expectedGeneration, decision, nextState); err != nil {
 			delete(e.states, sessionID)
 			return RouteDecision{}, err
+		}
+		if profile.PolicyKind == PolicyOmniRouteCostFirstV1 {
+			recordPolicyAttempt(candidate.RouteClass, profile.EscalationReason)
 		}
 		e.states[sessionID] = nextState
 		return decision, nil
@@ -189,6 +199,7 @@ func (e *Engine) selectContext(
 		Generation:       generation,
 		ProfileVersion:   profile.Version,
 		Status:           "waiting",
+		PolicyStateJSON:  policyStateJSON,
 		UpdatedAt:        now,
 	}
 	if err := e.persistNoEligible(ctx, expectedGeneration, nextState); err != nil {
@@ -276,6 +287,12 @@ func (e *Engine) persist(ctx context.Context, decision RouteDecision, state Rout
 		ProfileVersion:     decision.ProfileVersion,
 		Reason:             decision.Reason,
 		CreatedAt:          state.UpdatedAt,
+		RouteClass:         decision.RouteClass,
+		TaskClass:          decision.TaskClass,
+		TaskClassSource:    decision.TaskClassSource,
+		AttemptOrdinal:     decision.Generation,
+		EscalationReason:   decision.EscalationReason,
+		FailureCategory:    decision.FailureCategory,
 	})
 }
 
@@ -298,7 +315,10 @@ func (e *Engine) claimAndPersist(ctx context.Context, expectedGeneration int64, 
 			SessionID: decision.SessionID, LogicalProfileID: decision.LogicalProfileID,
 			ExecutionProfileID: decision.ExecutionProfileID, Generation: decision.Generation,
 			ProfileVersion: decision.ProfileVersion, Reason: decision.Reason,
-			CreatedAt: state.UpdatedAt,
+			CreatedAt:  state.UpdatedAt,
+			RouteClass: decision.RouteClass, TaskClass: decision.TaskClass,
+			TaskClassSource: decision.TaskClassSource, AttemptOrdinal: decision.Generation,
+			EscalationReason: decision.EscalationReason, FailureCategory: decision.FailureCategory,
 		})
 	}
 	return e.persist(ctx, decision, state)
@@ -384,12 +404,23 @@ func (e *Engine) ApplyFailureContext(
 	if failure == nil {
 		return RouteDecision{}, ErrNoEligibleCandidate
 	}
+	if recorder, ok := e.persistence.(AttemptFailureRecorder); ok {
+		if err := recorder.RecordRouteAttemptFailure(ctx, sessionID, expectedGeneration, ClassifiedFailureCategory(failure)); err != nil {
+			return RouteDecision{}, err
+		}
+	}
 	e.openCircuitForFailure(profile, currentCandidateID, failure)
 	e.releaseProbeForFailure(sessionID, expectedGeneration, currentCandidateID)
-	if candidate, ok := candidateByID(profile, currentCandidateID); ok && candidate.Policies.Version != 0 {
-		return e.applyPolicyFailure(ctx, sessionID, profile, expectedGeneration, currentCandidateID, candidate, failure)
-	}
+	currentCandidate, hasCurrentCandidate := candidateByID(profile, currentCandidateID)
 	action := e.ActionFor(profile, currentCandidateID, failure.Code)
+	filteredProfile, err := e.applySnapshottedPolicy(ctx, sessionID, profile, currentCandidateID)
+	if err != nil {
+		return RouteDecision{}, err
+	}
+	profile = filteredProfile
+	if hasCurrentCandidate && currentCandidate.Policies.Version != 0 {
+		return e.applyPolicyFailure(ctx, sessionID, profile, expectedGeneration, currentCandidateID, currentCandidate, failure)
+	}
 	switch action {
 	case ActionRetrySame:
 		return e.selectContext(ctx, sessionID, profile, expectedGeneration, "", currentCandidateID, "retry")
@@ -398,6 +429,53 @@ func (e *Engine) ApplyFailureContext(
 	default:
 		return RouteDecision{}, ErrNoEligibleCandidate
 	}
+}
+
+func (e *Engine) applySnapshottedPolicy(ctx context.Context, sessionID string, profile Profile, currentCandidateID string) (Profile, error) {
+	if profile.PolicyKind != PolicyOmniRouteCostFirstV1 {
+		return profile, nil
+	}
+	state, exists, err := e.LoadState(ctx, sessionID)
+	if err != nil || !exists {
+		return profile, err
+	}
+	var snapshot PolicyState
+	if state.PolicyStateJSON == "" || json.Unmarshal([]byte(state.PolicyStateJSON), &snapshot) != nil || snapshot.TaskClass == "" {
+		return Profile{}, errors.New("policy route state has no valid task classification snapshot")
+	}
+	filtered, err := ApplyOmniRoutePolicy(profile, snapshot.TaskClass, snapshot.EscalationReason)
+	if err != nil {
+		return Profile{}, err
+	}
+	filtered.TaskClassSource = snapshot.TaskClassSource
+	if snapshot.TaskClass != TaskClassSimple && snapshot.TaskClass != TaskClassMedium {
+		return filtered, nil
+	}
+	remaining := CandidatesAfter(filtered.Candidates, currentCandidateID)
+	for _, candidate := range remaining {
+		if candidate.Enabled && candidate.RouteClass != RouteClassStrong && !e.circuits.IsOpen(candidate.BindingKey, e.now()) {
+			filtered.Candidates = remaining
+			return filtered, nil
+		}
+	}
+	filtered, err = ApplyOmniRoutePolicy(profile, snapshot.TaskClass, EscalationCheapChainExhausted)
+	filtered.TaskClassSource = snapshot.TaskClassSource
+	filtered.Candidates = CandidatesAfter(filtered.Candidates, currentCandidateID)
+	return filtered, err
+}
+
+func policySnapshotJSON(profile Profile) string {
+	if profile.PolicyKind != PolicyOmniRouteCostFirstV1 {
+		return ""
+	}
+	payload, err := json.Marshal(PolicyState{
+		TaskClass: profile.TaskClass, TaskClassSource: profile.TaskClassSource,
+		EscalationReason: profile.EscalationReason,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
 }
 
 func candidateByID(profile Profile, candidateID string) (Candidate, bool) {

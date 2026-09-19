@@ -4,6 +4,7 @@ import type {
   TaskPlanRevisionEventPayload,
 } from "./task-plan-events";
 import type { CaptureRequest } from "@/lib/logger/capture";
+import type { ArchitectureEvidence } from "@/lib/api/domains/architecture-evidence-api";
 
 export const SYSTEM_AGENT_RUNTIME_STATUS_CHANGED = "system.agent_runtime.status_changed" as const;
 
@@ -450,6 +451,10 @@ export type BackendMessageMap = SessionBackendMessageMap &
     "task.updated": BackendMessage<"task.updated", TaskEventPayload>;
     "task.deleted": BackendMessage<"task.deleted", TaskEventPayload>;
     "task.state_changed": BackendMessage<"task.state_changed", TaskEventPayload>;
+    "task.architecture_evidence.updated": BackendMessage<
+      "task.architecture_evidence.updated",
+      { task_id: string; evidence: ArchitectureEvidence }
+    >;
     "task.status_summary.updated": BackendMessage<
       "task.status_summary.updated",
       TaskStatusSummaryUpdatedPayload
