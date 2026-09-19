@@ -798,6 +798,11 @@ func (s *Service) startCreatedSession(
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload task after on_turn_start: %w", err)
 	}
+	if s.architectureEvidenceGate != nil {
+		if err := s.architectureEvidenceGate.PrepareArchitectureBaseline(ctx, taskID); err != nil {
+			return nil, err
+		}
+	}
 	configMode := false
 	if cm, ok := session.Metadata["config_mode"].(bool); ok && cm {
 		configMode = true
